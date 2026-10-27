@@ -14,6 +14,8 @@
     codToPayNote: 'if Tobilled NA',
     pendingImport: null,
     busy: false,
+    loadingRecords: false,
+    loadError: '',
     syncChecking: false,
     preview: false,
     version: 0,
@@ -100,7 +102,7 @@
     state.user = user;
     byId('auth-view').hidden = true;
     byId('app-shell').hidden = false;
-    byId('add-shipment-top').hidden = state.preview;
+    byId('add-shipment-top').hidden = state.preview || state.loadingRecords || Boolean(state.loadError);
     byId('user-name').textContent = user.name || user.username;
     byId('user-role').textContent = user.role;
     byId('mobile-user-name').textContent = user.name || user.username;
@@ -184,7 +186,7 @@
       '<h2>👋 Hello, ' + escapeHtml(userName || 'there') + '! Welcome to SR Brokerage Ledger &amp; Dashboard</h2>' +
       '<p>Real-time freight billing and transparent broker settlement reconciliation.</p></div>' +
       '<div class="banner-quick-actions">' +
-      (state.preview ? '' : '<button class="btn btn-primary" type="button" data-action="add-shipment">＋ Add Shipment</button>') +
+      (state.preview || state.loadingRecords || state.loadError ? '' : '<button class="btn btn-primary" type="button" data-action="add-shipment">＋ Add Shipment</button>') +
       '<button class="btn btn-secondary" type="button" data-action="go-sheet">View Excel Sheet</button>' +
       '<button class="btn btn-secondary" type="button" data-action="export">Export Excel</button>' +
       '</div></section>' +
@@ -200,6 +202,13 @@
   function renderTable(records, showActions) {
     const actions = showActions !== false;
     if (!records.length) {
+      if (state.loadingRecords) {
+        return '<div class="empty-state" role="status"><strong>Loading shipments…</strong><p>Fetching the latest verified ledger.</p></div>';
+      }
+      if (state.loadError) {
+        return '<div class="empty-state" role="alert"><strong>Ledger data could not be loaded</strong><p>' +
+          escapeHtml(state.loadError) + '</p><button class="btn btn-secondary" type="button" data-action="refresh">Retry loading</button></div>';
+      }
       return '<div class="empty-state"><strong>No shipments yet</strong><p>Add a shipment or import an Excel workbook to begin.</p></div>';
     }
     const heads = FIELD_ORDER.map(function (field) { return headerCell(field, actions); }).join('') + (actions ? '<th>Actions</th>' : '');
@@ -234,7 +243,9 @@
       return '<tr data-id="' + escapeHtml(record.id) + '">' + FIELD_ORDER.map(function (field) {
         return recordCell(record, field).replace('<td', '<td');
       }).join('') + '</tr>';
-    }).join('') : '<tr><td class="empty-state" colspan="' + FIELD_ORDER.length + '">No shipments in the current view.</td></tr>';
+    }).join('') : '<tr><td class="empty-state" colspan="' + FIELD_ORDER.length + '">' +
+      (state.loadingRecords ? 'Loading the latest shipment data…' :
+        (state.loadError ? escapeHtml(state.loadError) : 'No shipments in the current view.')) + '</td></tr>';
     const totals = '<tr><td class="total-label" colspan="10">TOTAL (' + state.filtered.length + ' records)</td>' +
       '<td class="numeric">' + formatMoneyPaise(summary.freightPaise) + '</td>' +
       '<td class="numeric">' + formatMoneyPaise(summary.tMPaise) + '</td>' +
@@ -320,6 +331,7 @@
   }
   function render() {
     applyFilters();
+    byId('add-shipment-top').hidden = state.preview || state.loadingRecords || Boolean(state.loadError);
     const pages = {
       dashboard: ['Dashboard', 'Shipment activity and financial reconciliation', renderDashboard],
       ledger: ['Shipment Ledger', 'Search, filter, add and edit shipment records', renderLedger],
@@ -353,6 +365,8 @@
       state.records = result.records.map(withDerivedValues);
       state.version = Number(result.version) || state.version;
     }
+    state.loadingRecords = false;
+    state.loadError = '';
     setCloudStatus(true, 'Cloud connected');
     byId('footer-sync').textContent = 'Last synced ' + new Date().toLocaleTimeString();
     render();
@@ -381,10 +395,27 @@
     return;
     }
     try {
-    await refreshRecords();
+    const versionResult = await window.BrokerApi.version();
+    const serverVersion = Number(versionResult.version);
+    if (!Number.isFinite(serverVersion)) throw new Error('The backend did not return a valid data version.');
+    state.version = serverVersion;
+    state.user = existing;
+    state.loadingRecords = true;
+    state.loadError = '';
     showApp(existing);
+    setCloudStatus(false, 'Loading ledger…');
+    byId('footer-sync').textContent = 'Loading latest ledger…';
+    await refreshRecords();
     } catch (error) {
-    sessionStorage.removeItem('broker-ledger-session');
+    if (state.user) {
+      state.loadingRecords = false;
+      state.loadError = 'The latest ledger could not be loaded. Check your connection and retry.';
+      setCloudStatus(false, 'Ledger unavailable');
+      byId('footer-sync').textContent = 'Ledger load failed: ' + error.message;
+      render();
+      toast('You are signed in, but the latest ledger could not be loaded: ' + error.message, 'error');
+      return;
+    }
     showAuth('Your session could not be verified: ' + error.message);
     }
   }
@@ -736,18 +767,36 @@
     const username = byId('login-username').value.trim();
     const password = byId('login-password').value;
     setBusy(true);
+    byId('login-button').textContent = 'Signing in…';
     try {
     const user = await window.BrokerApi.login(username, password);
     sessionStorage.setItem('broker-ledger-session', JSON.stringify(user));
     byId('login-password').value = '';
     state.user = user;
-    await refreshRecords();
+    state.loadingRecords = true;
+    state.loadError = '';
     showApp(user);
+    setCloudStatus(false, 'Loading ledger…');
+    byId('footer-sync').textContent = 'Loading latest ledger…';
+    try {
+      await refreshRecords();
+    } catch (loadError) {
+      if (!state.user) return;
+      state.loadingRecords = false;
+      state.loadError = 'The latest ledger could not be loaded. Check your connection and retry.';
+      setCloudStatus(false, 'Ledger unavailable');
+      byId('footer-sync').textContent = 'Ledger load failed: ' + loadError.message;
+      render();
+      toast('You are signed in, but the latest ledger could not be loaded: ' + loadError.message, 'error');
+    }
     } catch (error) {
     sessionStorage.removeItem('broker-ledger-session');
     state.user = null;
+    state.loadingRecords = false;
+    state.loadError = '';
     showAuth(error.message);
     } finally {
+    byId('login-button').textContent = 'Secure Login';
     setBusy(false);
     }
   }
@@ -757,6 +806,8 @@
     sessionStorage.removeItem('broker-ledger-session');
     state.user = null;
     state.records = [];
+    state.loadingRecords = false;
+    state.loadError = '';
     showAuth();
   }
   function toggleSidebar(open) {
@@ -879,6 +930,8 @@
     window.addEventListener('broker:session-invalid', function () {
     state.user = null;
     state.records = [];
+    state.loadingRecords = false;
+    state.loadError = '';
     showAuth('Your session expired. Please sign in again.');
     });
   }

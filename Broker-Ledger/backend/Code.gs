@@ -100,6 +100,20 @@ function doGet() {
 }
 
 function doPost(event) {
+  var body = event && event.postData && event.postData.contents ? event.postData.contents : '';
+  if (!body || body.length > 2000000) return brokerJson_({ success: false, message: 'Request is empty or too large.' });
+  var request;
+  try { request = JSON.parse(body); }
+  catch (parseError) { return brokerJson_({ success: false, message: 'Request JSON is invalid.' }); }
+  request = request || {};
+
+  if (String(request.action || '') === 'ping') {
+    try { return brokerJson_(brokerHandle_(request)); }
+    catch (error) {
+      return brokerJson_({ success: false, message: String(error && error.message ? error.message : error) });
+    }
+  }
+
   var lock = LockService.getScriptLock();
   try {
     lock.waitLock(25000);
@@ -107,12 +121,7 @@ function doPost(event) {
     return brokerJson_({ success: false, code: 'SERVER_BUSY', message: 'Another update is in progress. Try again shortly.' });
   }
   try {
-    var body = event && event.postData && event.postData.contents ? event.postData.contents : '';
-    if (!body || body.length > 2000000) return brokerJson_({ success: false, message: 'Request is empty or too large.' });
-    var request;
-    try { request = JSON.parse(body); }
-    catch (parseError) { return brokerJson_({ success: false, message: 'Request JSON is invalid.' }); }
-    var response = brokerHandle_(request || {});
+    var response = brokerHandle_(request);
     return brokerJson_(response);
   } catch (error) {
     return brokerJson_({ success: false, message: String(error && error.message ? error.message : error) });
@@ -131,12 +140,15 @@ function brokerHandle_(request) {
     PropertiesService.getScriptProperties().deleteProperty('BROKER_SESSION_' + request.token);
     return { success: true };
   }
+  if (action === 'ping') {
+    return { success: true, records: [], version: brokerVersion_() };
+  }
 
   var spreadsheet = brokerGetSpreadsheet_();
   var sheet = spreadsheet.getSheetByName(BROKER_SHEET_NAME);
   if (!sheet) throw new Error('The shipment sheet is missing. Run setupBrokerLedger() again.');
-  if (action === 'getAll' || action === 'ping') {
-    return { success: true, records: action === 'ping' ? [] : brokerReadRecords_(sheet), version: brokerVersion_() };
+  if (action === 'getAll') {
+    return { success: true, records: brokerReadRecords_(sheet), version: brokerVersion_() };
   }
   if (action === 'createShipment') {
     var record = brokerValidateAndCalculate_(request.record);

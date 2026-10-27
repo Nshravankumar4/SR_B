@@ -128,7 +128,7 @@
       return response.text();
     })
     .then(function (source) {
-      const backend = new Function(source + '\nreturn { login: brokerLogin_, rowNumberForId: brokerRowNumberForId_, recordVersionMatches: brokerRecordVersionMatches_, validateAndCalculate: brokerValidateAndCalculate_ };')();
+      const backend = new Function(source + '\nreturn { doPost: doPost, login: brokerLogin_, rowNumberForId: brokerRowNumberForId_, recordVersionMatches: brokerRecordVersionMatches_, validateAndCalculate: brokerValidateAndCalculate_ };')();
       check('backend login cleans expired sessions and keeps rate-limit properties bounded', function () {
         const values = {
           BROKER_SPREADSHEET_ID: 'test-spreadsheet',
@@ -194,6 +194,55 @@
         equal(backend.recordVersionMatches('2026-10-28T10:00:00.000Z', { updatedAt: '2026-10-28T10:00:00.000Z' }), true);
         equal(backend.recordVersionMatches('2026-10-28T09:00:00.000Z', { updatedAt: '2026-10-28T10:00:00.000Z' }), false);
         equal(backend.recordVersionMatches('', { updatedAt: '2026-10-28T10:00:00.000Z' }), false);
+      });
+      check('backend version ping skips the global spreadsheet lock', function () {
+        const token = '123e4567-e89b-12d3-a456-426614174000';
+        const values = {
+          ['BROKER_SESSION_' + token]: JSON.stringify({
+            username: 'admin',
+            role: 'Admin',
+            expiresAt: Date.now() + 60000
+          }),
+          BROKER_LEDGER_DATA_VERSION: '17'
+        };
+        const originalPropertiesService = window.PropertiesService;
+        const originalLockService = window.LockService;
+        const originalContentService = window.ContentService;
+        window.PropertiesService = {
+          getScriptProperties: function () {
+            return {
+              getProperty: function (key) { return values[key] || null; },
+              deleteProperty: function (key) { delete values[key]; }
+            };
+          }
+        };
+        window.LockService = {
+          getScriptLock: function () { throw new Error('Ping unexpectedly requested the global lock.'); }
+        };
+        window.ContentService = {
+          MimeType: { JSON: 'application/json' },
+          createTextOutput: function (content) {
+            return { content: content, setMimeType: function () { return this; } };
+          }
+        };
+        try {
+          const output = backend.doPost({
+            postData: {
+              contents: JSON.stringify({ action: 'ping', token: token })
+            }
+          });
+          const result = JSON.parse(output.content);
+          equal(result.success, true);
+          equal(result.version, 17);
+          equal(result.records.length, 0);
+        } finally {
+          if (originalPropertiesService === undefined) delete window.PropertiesService;
+          else window.PropertiesService = originalPropertiesService;
+          if (originalLockService === undefined) delete window.LockService;
+          else window.LockService = originalLockService;
+          if (originalContentService === undefined) delete window.ContentService;
+          else window.ContentService = originalContentService;
+        }
       });
       check('backend derives COD from workbook source fields and canonicalizes status', function () {
         const record = backend.validateAndCalculate({

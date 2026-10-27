@@ -16,7 +16,7 @@
 2. Every read/write request includes the token. The backend resolves the token and enforces the role for protected operations.
 3. The server validates source fields and recalculates both derived amounts before writing.
 4. Browser views, the dashboard, spreadsheet view, and Excel export calculate derived values through the same shared rules from source fields.
-5. On a visible signed-in page, an 8-second poll checks the lightweight backend data version. The browser reloads the full authoritative dataset only after the version changes; returning to the tab and manual refresh also check for updates. A failed check is shown as offline/stale rather than a confirmed current sync.
+5. On a visible signed-in page, an 8-second poll checks the lightweight backend data version without taking the spreadsheet lock. The browser reloads the full authoritative dataset only after the version changes; returning to the tab and manual refresh also check for updates. A failed check is shown as offline/stale rather than a confirmed current sync.
 6. Updates include the record's `updatedAt` value captured when editing began. The backend rejects an update if another user saved a newer version, so stale forms cannot silently overwrite it.
 
 The application is not connected to the reference project's backend or spreadsheet. No sample shipment data is seeded at setup.

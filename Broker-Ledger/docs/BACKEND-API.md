@@ -18,7 +18,7 @@ Except `login`, actions require the server-issued `token`:
 
 Every write is serialized with `LockService.getScriptLock()`. An import validates the complete batch and checks duplicate identities before appending any rows.
 
-The browser polls `ping` every 8 seconds while a signed-in tab is visible and requests `getAll` only when the version changes. `updateShipment` requires the record's `updatedAt` value from the edit form; the Apps Script lock protects the version check and write as one operation.
+The browser polls `ping` every 8 seconds while a signed-in tab is visible and requests `getAll` only when the version changes. `ping` checks the authenticated session and script-property data version without waiting for the global spreadsheet lock or opening the spreadsheet; data writes and full reads remain serialized. `updateShipment` requires the record's `updatedAt` value from the edit form; the Apps Script lock protects the version check and write as one operation.
 
 ## Deployment notes
 
