@@ -113,6 +113,8 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .ledger-table, .sheet-table { width: max-content; min-width: 100%; border-collapse: separate; border-spacing: 0; color: #111827; font-size: .78rem; }
 .ledger-table th, .ledger-table td, .sheet-table th, .sheet-table td { border-right: 1px solid #d5dce5; border-bottom: 1px solid #d5dce5; padding: .5rem .55rem; text-align: left; white-space: nowrap; }
 .ledger-table th, .sheet-table th { position: sticky; top: 0; z-index: 2; color: white; background: var(--primary); font-size: .72rem; }
+.sort-button { border: 0; padding: 0; color: inherit; background: transparent; font: inherit; text-align: inherit; cursor: pointer; }
+.sort-button:focus-visible { outline: 2px solid #facc15; outline-offset: 2px; }
 .ledger-table th.calculated, .sheet-table th.calculated { background: #047857; }
 .ledger-table th.status-head, .sheet-table th.status-head { background: #0f766e; }
 .ledger-table th.numeric, .ledger-table td.numeric, .sheet-table td.numeric { text-align: right; font-variant-numeric: tabular-nums; }

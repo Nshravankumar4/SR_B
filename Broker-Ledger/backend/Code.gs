@@ -16,6 +16,19 @@ var BROKER_STATUSES = ['TOBILLED', 'A/TO-PAY', 'F/TO-PAY'];
 var BROKER_OPTIONAL_MONEY = ['tM', 'advance', 'advance2', 'advance3', 'extraAmount', 'pM'];
 var BROKER_SOURCE_MONEY = ['freight', 'tM', 'advance', 'advance2', 'advance3', 'extraAmount', 'pM'];
 
+function brokerCleanExpiredSessions_(properties) {
+  var all = properties.getProperties();
+  Object.keys(all).forEach(function(key) {
+    if (key.indexOf('BROKER_SESSION_') !== 0) return;
+    try {
+      var value = JSON.parse(all[key]);
+      if (!value || Number(value.expiresAt) < Date.now()) properties.deleteProperty(key);
+    } catch (error) {
+      properties.deleteProperty(key);
+    }
+  });
+}
+
 function setupBrokerLedger() {
   var properties = PropertiesService.getScriptProperties();
   var required = ['ADMIN_USERNAME', 'ADMIN_PASSWORD', 'EMPLOYEE_USERNAME', 'EMPLOYEE_PASSWORD'];
@@ -24,18 +37,6 @@ function setupBrokerLedger() {
     throw new Error('Set these Script Properties before setup: ' + missing.join(', '));
   }
 
-  function brokerCleanExpiredSessions_(properties) {
-    var all = properties.getProperties();
-    Object.keys(all).forEach(function(key) {
-      if (key.indexOf('BROKER_SESSION_') !== 0) return;
-      try {
-        var value = JSON.parse(all[key]);
-        if (!value || Number(value.expiresAt) < Date.now()) properties.deleteProperty(key);
-      } catch (error) {
-        properties.deleteProperty(key);
-      }
-    });
-  }
   if (String(properties.getProperty('ADMIN_USERNAME')).toLowerCase() ===
       String(properties.getProperty('EMPLOYEE_USERNAME')).toLowerCase()) {
     throw new Error('Administrator and employee usernames must be different.');
@@ -212,8 +213,11 @@ function brokerLogin_(request) {
   if (brokerConstantTimeEqual_(username.toLowerCase(), employeeName.toLowerCase()) &&
       brokerConstantTimeEqual_(password, String(properties.getProperty('EMPLOYEE_PASSWORD') || ''))) role = 'Employee';
 
-  var attemptsKey = 'BROKER_LOGIN_FAIL_COUNT';
-  var blockedKey = 'BROKER_LOGIN_BLOCK_UNTIL';
+  var loginKey = Utilities.base64EncodeWebSafe(
+    Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, username.toLowerCase(), Utilities.Charset.UTF_8)
+  ).replace(/=+$/, '');
+  var attemptsKey = 'BROKER_LOGIN_FAIL_COUNT_' + loginKey;
+  var blockedKey = 'BROKER_LOGIN_BLOCK_UNTIL_' + loginKey;
   var attempts = Number(properties.getProperty(attemptsKey) || 0);
   var blockedUntil = Number(properties.getProperty(blockedKey) || 0);
   if (blockedUntil > Date.now()) return { success: false, message: 'Too many failed sign-in attempts. Wait a few minutes and try again.' };

@@ -133,10 +133,16 @@
     const cls = status === 'A/TO-PAY' ? 'atopay' : status === 'F/TO-PAY' ? 'ftopay' : '';
     return '<span class="status-badge ' + cls + '">' + escapeHtml(status) + '</span>';
   }
-  function headerCell(field) {
+  function headerCell(field, sortable) {
     const cls = MONEY_FIELDS.has(field) ? ' class="numeric' + (field === 'pendingAmount' || field === 'pendingTobilled' ? ' calculated' : '') + '"' :
       field === 'toPayStatus' ? ' class="status-head"' : '';
-    return '<th' + cls + '>' + escapeHtml(LABELS[field]) + '</th>';
+    if (!sortable) return '<th' + cls + '>' + escapeHtml(LABELS[field]) + '</th>';
+    const active = state.sortField === field;
+    const sortOrder = active ? (state.sortDirection === 1 ? 'ascending' : 'descending') : 'none';
+    const indicator = active ? (state.sortDirection === 1 ? ' ▲' : ' ▼') : '';
+    return '<th' + cls + ' aria-sort="' + sortOrder + '"><button class="sort-button" type="button" data-action="sort" data-field="' +
+      escapeHtml(field) + '" aria-label="Sort by ' + escapeHtml(LABELS[field]) + '">' +
+      escapeHtml(LABELS[field] + indicator) + '</button></th>';
   }
   function recordCell(record, field) {
     const value = fieldValue(record, field);
@@ -184,7 +190,7 @@
     if (!records.length) {
       return '<div class="empty-state"><strong>No shipments yet</strong><p>Add a shipment or import an Excel workbook to begin.</p></div>';
     }
-    const heads = FIELD_ORDER.map(headerCell).join('') + (actions ? '<th>Actions</th>' : '');
+    const heads = FIELD_ORDER.map(function (field) { return headerCell(field, actions); }).join('') + (actions ? '<th>Actions</th>' : '');
     const rows = records.map(function (record) {
       const cells = FIELD_ORDER.map(function (field) { return recordCell(record, field); }).join('');
       const actionCell = actions ? '<td class="row-actions"><div class="view-actions">' +
@@ -204,7 +210,8 @@
       '<div class="filter-control search-control"><label for="ledger-search">Search shipments</label><input id="ledger-search" type="search" placeholder="LR No, transporter, truck, route..." value="' + escapeHtml(filterValues.search) + '"></div>' +
       '<div class="filter-control"><label for="ledger-status">ToPayStatus</label><select id="ledger-status"><option value="ALL">All statuses</option>' +
       CALC.STATUS.map(function (status) { return '<option value="' + status + '"' + (filterValues.status === status ? ' selected' : '') + '>' + status + '</option>'; }).join('') +
-      '</select></div></div><div class="view-actions"><button class="btn btn-secondary" type="button" data-action="refresh">Refresh</button><button class="btn btn-secondary" type="button" data-action="export">Export Excel</button></div></div>' +
+      '</select></div></div><div class="view-actions"><button class="btn btn-secondary" type="button" data-action="clear-filters"' +
+      (filterValues.status === 'ALL' && !filterValues.search.trim() ? ' disabled' : '') + '>Clear filters</button><button class="btn btn-secondary" type="button" data-action="refresh">Refresh</button><button class="btn btn-secondary" type="button" data-action="export">Export Excel</button></div></div>' +
       '<div class="table-meta"><span>' + state.filtered.length + ' shipment' + (state.filtered.length === 1 ? '' : 's') + ' in view</span>' +
       '<span>FRIGHT in view: <strong>' + formatMoneyPaise(filteredSummary.freightPaise) + '</strong> · Pending in view: <strong>' + formatMoneyPaise(filteredSummary.pendingAmountPaise) + '</strong></span></div>' +
       renderTable(state.filtered, true) + '</section>';
@@ -232,7 +239,7 @@
       '<button class="btn btn-secondary" type="button" data-action="fullscreen">Full screen</button><button class="btn btn-secondary" type="button" data-action="print">Print</button><button class="btn btn-primary" type="button" data-action="export">Export Excel</button></div></div>' +
       '<div class="table-meta"><span>' + state.filtered.length + ' rows</span><span>Calculated columns are highlighted.</span></div>' +
       '<div id="sheet-wrap" class="sheet-wrap" tabindex="0" aria-label="Spreadsheet-style shipment ledger"><table class="sheet-table"><thead><tr>' +
-      FIELD_ORDER.map(headerCell).join('') + '</tr></thead><tbody>' + rows + '</tbody><tfoot>' + totals + '</tfoot></table></div>' +
+      FIELD_ORDER.map(function (field) { return headerCell(field, true); }).join('') + '</tr></thead><tbody>' + rows + '</tbody><tfoot>' + totals + '</tfoot></table></div>' +
       '<div class="summary-strip"><span>Freight: <strong>' + formatMoneyPaise(summary.freightPaise) + '</strong></span><span>Pending: <strong>' +
       formatMoneyPaise(summary.pendingAmountPaise) + '</strong></span><span>COD / To-Pay: <strong>' + formatMoneyPaise(summary.codToPayPaise) + '</strong></span></div></section>';
   }
@@ -275,10 +282,28 @@
       if (!query) return true;
       return ['transportName', 'lrNo', 'truckNo', 'from', 'to', 'accountNo', 'ifscCode', 'bank', 'remarks']
         .some(function (key) { return String(record[key] || '').toLowerCase().includes(query); });
-    }).sort(function (a, b) {
-      const comparison = String(a[state.sortField] || '').localeCompare(String(b[state.sortField] || ''), undefined, { numeric: true });
-      return state.sortDirection * (comparison || sortBySlNo(a, b));
-    });
+    }).sort(compareRecords);
+  }
+  function sortableValue(record, field) {
+    const value = record[field];
+    if (DATE_FIELDS.has(field)) {
+      const text = String(value || '');
+      const dmy = text.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+      return dmy ? dmy[3] + '-' + dmy[2] + '-' + dmy[1] : text;
+    }
+    if (MONEY_FIELDS.has(field) || field === 'codToPay') {
+      const parsed = CALC.parseMoney(value, { allowEmpty: true });
+      if (parsed.ok && !parsed.empty) return parsed.paise;
+    }
+    return String(value === null || value === undefined ? '' : value);
+  }
+  function compareRecords(a, b) {
+    const left = sortableValue(a, state.sortField);
+    const right = sortableValue(b, state.sortField);
+    const comparison = typeof left === 'number' && typeof right === 'number'
+      ? left - right
+      : String(left).localeCompare(String(right), undefined, { numeric: true, sensitivity: 'base' });
+    return state.sortDirection * (comparison || sortBySlNo(a, b));
   }
   function render() {
     applyFilters();
@@ -367,7 +392,6 @@
     }
     input.value = value;
     });
-    if (!record) form.elements.toPayStatus.value = 'TOBILLED';
     updateFormCalculations();
   }
   function openShipmentDialog(mode, id) {
@@ -640,7 +664,7 @@
     event.preventDefault();
     if (state.busy) return;
     if (!window.BrokerApi.configured()) {
-    setAuthMessage('Backend setup required. Deploy backend/Code.gs, then add its Web App URL to js/config.js. See README.md.', true);
+    setAuthMessage('Backend setup required. Deploy Broker-Ledger/backend/Code.gs, then add its Web App URL to Broker-Ledger/js/config.js. See the repository README.', true);
     return;
     }
     const username = byId('login-username').value.trim();
@@ -721,6 +745,23 @@
     if (!button) return;
     const action = button.dataset.action;
     if (action === 'go-ledger') { state.view = 'ledger'; render(); }
+    if (action === 'sort') {
+      const field = button.dataset.field;
+      if (FIELD_ORDER.includes(field)) {
+        if (state.sortField === field) state.sortDirection *= -1;
+        else { state.sortField = field; state.sortDirection = 1; }
+        render();
+      }
+      return;
+    }
+    if (action === 'clear-filters') {
+      state.search = '';
+      state.status = 'ALL';
+      if (byId('ledger-search')) byId('ledger-search').value = '';
+      if (byId('ledger-status')) byId('ledger-status').value = 'ALL';
+      render();
+      return;
+    }
     if (action === 'view') openShipmentDialog('view', button.dataset.id);
     if (action === 'edit') openShipmentDialog('edit', button.dataset.id);
     if (action === 'delete') deleteShipment(button.dataset.id);
@@ -752,7 +793,7 @@
     showApp({ username: 'Preview', name: 'Read-only preview', role: 'Employee' });
     setCloudStatus(false, 'Preview only');
   } else if (!window.BrokerApi.configured()) {
-    setAuthMessage('Backend is not configured. Deploy the independent Apps Script and enter its Web App URL in js/config.js.', false);
+    setAuthMessage('Backend is not configured. Deploy the independent Apps Script and enter its Web App URL in Broker-Ledger/js/config.js.', false);
   }
   if (!state.preview) {
     initializeSession();

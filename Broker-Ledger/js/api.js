@@ -17,7 +17,7 @@
 
   async function request(action, data, options) {
     const url = apiUrl();
-    if (!url) throw new Error('Google Apps Script URL is not configured. Set it in js/config.js after deploying the backend.');
+    if (!url) throw new Error('Google Apps Script URL is not configured. Set it in Broker-Ledger/js/config.js after deploying the backend.');
     let response;
     try {
       response = await fetch(url, {

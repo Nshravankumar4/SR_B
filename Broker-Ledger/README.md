@@ -1,5 +1,7 @@
 # Broker Ledger
 
+The GitHub Pages application entry point is the repository-root `index.html`. The application source, backend, tests, and detailed guides remain organized in `Broker-Ledger/`.
+
 An independent transport brokerage ledger for shipment records, billed balances, and COD / To-Pay tracking. The design takes general layout and interaction cues from the SR_T reference, but this project has its own source code, Google Apps Script backend, Google spreadsheet, accounts, and data.
 
 The application starts with an empty ledger. The example shipments in `tests/fixtures/reference-shipments.json` are test fixtures only; they are never loaded as live records.
@@ -19,32 +21,35 @@ The application starts with an empty ledger. The example shipments in `tests/fix
 ## Project layout
 
 ```text
-Broker-Ledger/
-├── index.html
-├── css/styles.css
-├── js/
-│   ├── app.js
-│   ├── api.js
-│   ├── calculations.js
-│   ├── config.js
-│   └── validation.js
-├── backend/Code.gs
-├── libs/xlsx.full.min.js
-├── tests/
-│   ├── calculations.test.js
-│   ├── validation.test.js
-│   ├── summaries.test.js
-│   ├── browser-runner.html
-│   ├── browser-runner.js
-│   └── fixtures/reference-shipments.json
-└── docs/
-    ├── ARCHITECTURE.md
-    ├── BACKEND-API.md
-    ├── CALCULATIONS.md
-    ├── DATA-MODEL.md
-    ├── DEPLOYMENT.md
-    ├── SECURITY.md
-    └── TESTING.md
+SR_B/
+├── index.html                 # GitHub Pages application entry point
+├── reports/summary.html       # Previous static workbook summary
+├── Broker_Ledger_Summary.md
+└── Broker-Ledger/
+    ├── css/styles.css
+    ├── js/
+    │   ├── app.js
+    │   ├── api.js
+    │   ├── calculations.js
+    │   ├── config.js
+    │   └── validation.js
+    ├── backend/Code.gs
+    ├── libs/xlsx.full.min.js
+    ├── tests/
+    │   ├── calculations.test.js
+    │   ├── validation.test.js
+    │   ├── summaries.test.js
+    │   ├── browser-runner.html
+    │   ├── browser-runner.js
+    │   └── fixtures/reference-shipments.json
+    └── docs/
+        ├── ARCHITECTURE.md
+        ├── BACKEND-API.md
+        ├── CALCULATIONS.md
+        ├── DATA-MODEL.md
+        ├── DEPLOYMENT.md
+        ├── SECURITY.md
+        └── TESTING.md
 ```
 
 ## Open a local read-only preview
@@ -54,11 +59,11 @@ The preview displays the actual app styling and empty application views. It is i
 From PowerShell:
 
 ```powershell
-Set-Location 'D:\Repo\SR_B\Broker-Ledger'
+Set-Location 'D:\Repo\SR_B'
 python -m http.server 8123 --bind 127.0.0.1
 ```
 
-Open `http://127.0.0.1:8123/?preview=1`. Use Ctrl+C in the server terminal to stop it.
+Open `http://127.0.0.1:8123/?preview=1`. The app and its assets are served from the repository root; the source files remain in `Broker-Ledger/`. Use Ctrl+C in the server terminal to stop it.
 
 ## Configure the live Google Sheets application
 
@@ -66,7 +71,7 @@ Open `http://127.0.0.1:8123/?preview=1`. Use Ctrl+C in the server terminal to st
 2. Set different administrator and employee usernames/passwords (at least 12 characters each) as private Apps Script Script Properties; never add them to frontend source code or commit them.
 3. Run `setupBrokerLedger()` and authorize the script.
 4. Deploy the script as a Web App and paste its URL into `js/config.js` as `apiUrl`.
-5. Serve or host this folder over HTTPS. The live app will then authenticate against the new backend. The backend URL is configuration, not a credential.
+5. Host the repository root over HTTPS (for example, with GitHub Pages). The live app at the root will authenticate against the new backend. The backend URL is configuration, not a credential.
 
 Until that separate backend is deployed and configured, normal login and all persistent operations remain unavailable. The application does not silently fall back to browser storage.
 
@@ -94,7 +99,7 @@ With Node.js 18 or later:
 node --test tests\calculations.test.js tests\validation.test.js tests\summaries.test.js
 ```
 
-The same calculation and validation checks can be run in a browser by serving the project and opening `/tests/browser-runner.html`. Test coverage and end-to-end checks are listed in [docs/TESTING.md](docs/TESTING.md).
+Run the command from `D:\Repo\SR_B\Broker-Ledger`. The same calculation and validation checks can be run in a browser by serving `D:\Repo\SR_B` and opening `/Broker-Ledger/tests/browser-runner.html`. Test coverage and end-to-end checks are listed in [docs/TESTING.md](docs/TESTING.md).
 
 ## Backup, recovery, and security
 

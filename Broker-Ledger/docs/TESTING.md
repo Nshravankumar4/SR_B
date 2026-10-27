@@ -10,13 +10,13 @@ node --test tests\calculations.test.js tests\validation.test.js tests\summaries.
 
 ## Browser checks
 
-Serve the project locally and open `tests/browser-runner.html`. It runs the calculation and validation assertions in the browser JavaScript engine.
+Serve the repository root locally and open `/Broker-Ledger/tests/browser-runner.html`. It runs the calculation and validation assertions in the browser JavaScript engine, plus an isolated backend login/session-cleanup check using mocked Apps Script services. The browser test does not connect to a real spreadsheet or validate a deployed backend.
 
-For the visual shell, open `/?preview=1`. This mode is empty and read-only; it does not exercise authentication, persistence, or mutations.
+For the visual shell, open `/?preview=1`. This mode is empty and read-only; it does not exercise real authentication, persistence, or mutations.
 
 ## Cloud end-to-end checks still require deployment
 
-After deploying a separate Apps Script project and configuring `js/config.js`, verify:
+After deploying a separate Apps Script project and configuring `Broker-Ledger/js/config.js`, verify:
 
 1. Admin and employee sign-in; invalid passwords and rate-limit behavior.
 2. Add, edit, status change, and reload; IDs remain stable and records are not duplicated.
