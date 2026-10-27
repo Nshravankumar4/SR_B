@@ -352,6 +352,14 @@
         };
         equal(window.BrokerValidation.validateShipment(validSlash).valid, true);
       });
+      check('POD amount status evaluates to numeric zero, never substituting text DONE', function () {
+        const resTobilled = c.calculateShipment(fixture[0]);
+        const resAToPay = c.calculateShipment(fixture[2]);
+        const resFToPay = c.calculateShipment(fixture[3]);
+        equal(resTobilled.podAmountStatus, 0);
+        equal(resAToPay.podAmountStatus, 0);
+        equal(resFToPay.podAmountStatus, 0);
+      });
       renderResults();
     })
     .catch(function (error) {

@@ -514,6 +514,9 @@
     record.codToPay = calculated.codToPay;
     record.pendingTobilled = calculated.pendingTobilled;
     record.pendingAmount = calculated.pendingAmount;
+    if (form.elements.podAmountStatus && !form.elements.podAmountStatus.value.trim()) {
+      record.podAmountStatus = String(calculated.podAmountStatus !== undefined ? calculated.podAmountStatus : '0');
+    }
     return record;
   }
 
@@ -575,6 +578,9 @@
       }
       if (form.elements.toPayStatus && !form.elements.toPayStatus.value) {
         form.elements.toPayStatus.value = 'TOBILLED';
+      }
+      if (form.elements.podAmountStatus && !form.elements.podAmountStatus.value) {
+        form.elements.podAmountStatus.value = '0';
       }
     }
     updateFormCalculations();
@@ -1025,18 +1031,6 @@
       if (sForm.elements.to) {
         sForm.elements.to.addEventListener('input', function () {
           this.value = this.value.toUpperCase();
-        });
-      }
-      if (sForm.elements.podReceivedDate) {
-        sForm.elements.podReceivedDate.addEventListener('change', function () {
-          const podStatusInput = sForm.elements.podAmountStatus;
-          if (podStatusInput) {
-            if (this.value && (!podStatusInput.value.trim() || podStatusInput.value.trim().toUpperCase() === 'PENDING')) {
-              podStatusInput.value = 'DONE';
-            } else if (!this.value && podStatusInput.value.trim().toUpperCase() === 'DONE') {
-              podStatusInput.value = 'PENDING';
-            }
-          }
         });
       }
     }

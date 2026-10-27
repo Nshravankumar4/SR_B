@@ -71,6 +71,7 @@
 
     let pendingTobilled = null;
     let pendingAmount = null;
+    let podAmountStatus = 0;
     let codToPay = shipment[COD_FIELD] === null || shipment[COD_FIELD] === undefined
       ? ''
       : shipment[COD_FIELD];
@@ -81,16 +82,22 @@
       pendingAmount = fromPaise(
         Math.round(pendingTobilled * 100) + parsed.extraAmount - parsed.pM
       );
+      // Master Workbook Col AA Formula: =IF(M="TOBILLED", V + W - Y - Z) -> numeric 0
+      podAmountStatus = fromPaise(
+        Math.round(pendingTobilled * 100) + parsed.extraAmount - parsed.pM - Math.round(pendingAmount * 100)
+      );
     } else if (status === 'A/TO-PAY' || status === 'F/TO-PAY') {
       const codToPayPaise = parsed.freight - parsed.tM - parsed.advance - parsed.advance2 - parsed.advance3;
       codToPay = fromPaise(codToPayPaise);
       pendingAmount = fromPaise(parsed.freight - parsed.tM - parsed.advance - codToPayPaise);
+      podAmountStatus = 0;
     }
 
     return {
       codToPay: codToPay,
       pendingTobilled: pendingTobilled,
       pendingAmount: pendingAmount,
+      podAmountStatus: podAmountStatus,
       errors: errors
     };
   }

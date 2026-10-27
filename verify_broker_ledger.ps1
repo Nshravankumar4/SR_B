@@ -143,12 +143,14 @@ $neg = Calc-Shipment @{ toPayStatus = "TOBILLED"; freight = "20,000"; tM = "0"; 
 Assert-Test "20. Negative balance preservation (Freight 20,000 - Adv 25,000 -> -5,000)" `
     ($neg.pendingTobilled -eq -5000 -and $neg.pendingAmount -eq -5000)
 
-# 6. POD Status Auto-Toggle & Date Normalization
+# 6. POD Status Rules & Date Normalization
+$calcJs = Get-Content -Raw "Broker-Ledger\js\calculations.js"
 $valJs = Get-Content -Raw "Broker-Ledger\js\validation.js"
-Assert-Test "21. POD received date auto-toggles podAmountStatus to DONE/PENDING" `
-    ($appJs -match 'sForm\.elements\.podReceivedDate' -and `
-     $appJs -match "podStatusInput\.value = 'DONE'" -and `
-     $appJs -match "podStatusInput\.value = 'PENDING'")
+$appJs = Get-Content -Raw "Broker-Ledger\js\app.js"
+Assert-Test "21. POD Amount Status strictly evaluates to numeric zero, never substituting text DONE" `
+    ($calcJs -match 'podAmountStatus = fromPaise\(' -and `
+     $calcJs -match 'podAmountStatus: podAmountStatus' -and `
+     !($appJs -match "podStatusInput\.value = 'DONE'"))
 
 Assert-Test "22. toDateInput parses slash dates and pads single-digit values" `
     ($appJs -match 'toDateInput' -and $appJs -match 'padStart\(2,\s*''0''\)')
