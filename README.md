@@ -1,4 +1,4 @@
-# Broker Ledger
+# SR Brokerage Ledger
 
 The repository root is the GitHub Pages application entry point. The app's source, Google Apps Script backend, tests, and setup guides are organized under [`Broker-Ledger/`](Broker-Ledger/README.md).
 

@@ -104,7 +104,7 @@
       return response.text();
     })
     .then(function (source) {
-      const backend = new Function(source + '\nreturn { login: brokerLogin_, rowNumberForId: brokerRowNumberForId_ };')();
+      const backend = new Function(source + '\nreturn { login: brokerLogin_, rowNumberForId: brokerRowNumberForId_, recordVersionMatches: brokerRecordVersionMatches_ };')();
       check('backend login cleans expired sessions and keeps rate-limit properties bounded', function () {
         const values = {
           BROKER_SPREADSHEET_ID: 'test-spreadsheet',
@@ -165,6 +165,11 @@
         };
         equal(backend.rowNumberForId(sheet, 'record-b'), 4);
         equal(backend.rowNumberForId(sheet, 'missing-record'), null);
+      });
+      check('optimistic updates reject a stale or missing record version', function () {
+        equal(backend.recordVersionMatches('2026-10-28T10:00:00.000Z', { updatedAt: '2026-10-28T10:00:00.000Z' }), true);
+        equal(backend.recordVersionMatches('2026-10-28T09:00:00.000Z', { updatedAt: '2026-10-28T10:00:00.000Z' }), false);
+        equal(backend.recordVersionMatches('', { updatedAt: '2026-10-28T10:00:00.000Z' }), false);
       });
       renderResults();
     })

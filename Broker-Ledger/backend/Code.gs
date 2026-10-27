@@ -160,6 +160,13 @@ function brokerHandle_(request) {
     var existingRecord = records.find(function(item) { return item.id === id; });
     var rowNumber = brokerRowNumberForId_(sheet, id);
     if (!existingRecord || !rowNumber) throw new Error('Shipment no longer exists. Reload the ledger and try again.');
+    if (!brokerRecordVersionMatches_(request.expectedUpdatedAt, existingRecord)) {
+      return {
+        success: false,
+        error: 'RECORD_CONFLICT',
+        message: 'This shipment was changed by another user. Your edits were not saved. Close and reopen the latest record before editing again.'
+      };
+    }
     var updated = brokerValidateAndCalculate_(request.record);
     brokerAssertUnique_(updated, records, id);
     updated.id = id;
@@ -258,6 +265,11 @@ function brokerRowNumberForId_(sheet, id) {
     throw new Error('Duplicate shipment IDs were found in the sheet. No record was changed. Contact the administrator.');
   }
   return matchingRows.length ? matchingRows[0] : null;
+}
+
+function brokerRecordVersionMatches_(expectedUpdatedAt, existingRecord) {
+  return Boolean(expectedUpdatedAt) &&
+    String(expectedUpdatedAt) === String(existingRecord && existingRecord.updatedAt || '');
 }
 
 function brokerSession_(token) {

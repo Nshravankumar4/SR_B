@@ -37,3 +37,11 @@ The Web App may need to be reachable by both users for Google Apps Script's Web 
 The repository-root `index.html` is the Broker Ledger application entry point. The previous workbook summary is available at `reports/summary.html`, and the Markdown report remains at `Broker_Ledger_Summary.md`. Configure GitHub Pages to publish the `main` branch from the repository root.
 
 The app's frontend and Google Apps Script backend are deployed separately. Add the Apps Script `/exec` URL to `Broker-Ledger/js/config.js`, commit that URL-only configuration, and redeploy the static site. Never commit account credentials or Script Properties.
+
+## Vercel static hosting
+
+This project is plain HTML, CSS, and JavaScript and has no build step. To host it on Vercel, import the `SR_B` GitHub repository, select the repository root as the project root and the **Other** framework preset, and leave the build command empty. Serve the repository root so `index.html` and the relative `Broker-Ledger/` assets resolve correctly. The root `.vercelignore` excludes workbook and CSV data files from static deployment. The Google Apps Script remains the backend; Vercel does not replace or proxy it.
+
+Before deploying, ensure the frontend configuration points to the intended Apps Script `/exec` deployment. Do not deploy the source workbook or any backup containing shipment, account, or bank details as public static files. Verify excluded workbook URLs are not publicly served. The Apps Script backend must be updated separately when its code changes; redeploy the web app to a new version while retaining its existing Script Properties and spreadsheet ID.
+
+After deployment, test sign-in, read, and a controlled create/edit/delete workflow with test data on the deployed origin. A local preview or successful static deployment does not verify Apps Script browser access, credentials, roles, or production data.

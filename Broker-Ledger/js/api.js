@@ -41,7 +41,9 @@
         sessionStorage.removeItem('broker-ledger-session');
         root.dispatchEvent(new CustomEvent('broker:session-invalid'));
       }
-      throw new Error((result && result.message) || 'The backend rejected the request.');
+      const error = new Error((result && result.message) || 'The backend rejected the request.');
+      error.code = result && (result.error || result.code) ? (result.error || result.code) : '';
+      throw error;
     }
     return result;
   }
@@ -54,8 +56,11 @@
     },
     logout: function () { return request('logout'); },
     list: function () { return request('getAll'); },
+    version: function () { return request('ping'); },
     create: function (record) { return request('createShipment', { record: record }); },
-    update: function (id, record) { return request('updateShipment', { id: id, record: record }); },
+    update: function (id, record, expectedUpdatedAt) {
+      return request('updateShipment', { id: id, record: record, expectedUpdatedAt: expectedUpdatedAt });
+    },
     remove: function (id) { return request('deleteShipment', { id: id }); },
     importMany: function (records) { return request('importShipments', { records: records }); },
     backup: function () { return request('createBackup'); }

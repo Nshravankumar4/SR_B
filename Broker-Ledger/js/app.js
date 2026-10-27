@@ -10,8 +10,10 @@
     view: 'dashboard',
     editingId: null,
     formMode: 'edit',
+    editingUpdatedAt: '',
     pendingImport: null,
     busy: false,
+    syncChecking: false,
     preview: false,
     version: 0,
     sortField: 'slNo',
@@ -178,7 +180,7 @@
         summary.statusCounts[status] + ' shipment' + (summary.statusCounts[status] === 1 ? '' : 's') + '</span></article>';
     }).join('');
     return '<section class="dashboard-hero-banner"><div class="banner-welcome">' +
-      '<h2>👋 Hello, ' + escapeHtml(userName || 'there') + '! Welcome to Shinex Broker Ledger &amp; Dashboard</h2>' +
+      '<h2>👋 Hello, ' + escapeHtml(userName || 'there') + '! Welcome to SR Brokerage Ledger &amp; Dashboard</h2>' +
       '<p>Real-time freight billing and transparent broker settlement reconciliation.</p></div>' +
       '<div class="banner-quick-actions">' +
       (state.preview ? '' : '<button class="btn btn-primary" type="button" data-action="add-shipment">＋ Add Shipment</button>') +
@@ -352,6 +354,23 @@
     byId('footer-sync').textContent = 'Last synced ' + new Date().toLocaleTimeString();
     render();
   }
+  async function checkForUpdates() {
+    if (!state.user || state.busy || state.syncChecking) return;
+    state.syncChecking = true;
+    try {
+      const result = await window.BrokerApi.version();
+      const version = Number(result.version);
+      if (!Number.isFinite(version)) throw new Error('Backend response did not contain a valid data version.');
+      if (version > state.version) {
+        await refreshRecords();
+      } else {
+        setCloudStatus(true, 'Cloud connected');
+        byId('footer-sync').textContent = 'Last checked ' + new Date().toLocaleTimeString();
+      }
+    } finally {
+      state.syncChecking = false;
+    }
+  }
   async function initializeSession() {
     const existing = getCurrentSession();
     if (!existing || !existing.token) {
@@ -411,6 +430,7 @@
     return;
     }
     state.editingId = id || null;
+    state.editingUpdatedAt = existing && existing.updatedAt ? String(existing.updatedAt) : '';
     state.formMode = mode;
     const form = byId('shipment-form');
     setFormValues(existing);
@@ -427,6 +447,7 @@
   function closeShipmentDialog() {
     if (byId('shipment-dialog').open) byId('shipment-dialog').close();
     state.editingId = null;
+    state.editingUpdatedAt = '';
   }
   function errorList(errors) {
     return Object.keys(errors).map(function (field) {
@@ -448,10 +469,17 @@
     setBusy(true);
     let response;
     try {
-      if (state.editingId) response = await window.BrokerApi.update(state.editingId, record);
+      if (state.editingId) response = await window.BrokerApi.update(state.editingId, record, state.editingUpdatedAt);
       else response = await window.BrokerApi.create(record);
     } catch (error) {
       errorBox.textContent = error.message;
+      if (error.code === 'RECORD_CONFLICT') {
+        try { await refreshRecords(); }
+        catch (refreshError) {
+          setCloudStatus(false, 'Offline — last data may be stale');
+          byId('footer-sync').textContent = 'Conflict detected; refresh failed: ' + refreshError.message;
+        }
+      }
       errorBox.hidden = false;
       setBusy(false);
       return;
@@ -810,6 +838,16 @@
       toast(error.message, 'error');
     });
     });
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) checkForUpdates().catch(function () {
+        setCloudStatus(false, 'Offline — last data may be stale');
+      });
+    });
+    window.addEventListener('focus', function () {
+      checkForUpdates().catch(function () {
+        setCloudStatus(false, 'Offline — last data may be stale');
+      });
+    });
     window.addEventListener('broker:session-invalid', function () {
     state.user = null;
     state.records = [];
@@ -828,11 +866,11 @@
   if (!state.preview) {
     initializeSession();
     window.setInterval(function () {
-      if (!state.user || state.busy) return;
-      refreshRecords().catch(function () {
+      if (!state.user || state.busy || document.hidden) return;
+      checkForUpdates().catch(function () {
         setCloudStatus(false, 'Offline — last data may be stale');
         byId('footer-sync').textContent = 'Cloud sync is unavailable; displayed data may be outdated.';
       });
-    }, 60000);
+    }, 8000);
   }
 })();
