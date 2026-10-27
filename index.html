@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Broker Ledger Summary</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --heading: #1f2937;
+      --text: #374151;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --primary: #1d4ed8;
+      --primary-soft: #dbeafe;
+      --success: #166534;
+      --warning: #92400e;
+      --danger: #991b1b;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 32px auto;
+      padding: 0 20px 40px;
+    }
+
+    .header {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 28px 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 2rem;
+      color: var(--heading);
+    }
+
+    .subtext {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.96rem;
+    }
+
+    .section {
+      margin-top: 24px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 20px 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+
+    h2 {
+      margin: 0 0 16px;
+      font-size: 1.35rem;
+      color: var(--heading);
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      margin-top: 12px;
+    }
+
+    .stat-box {
+      background: #f9fafb;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+
+    .label {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      margin-bottom: 6px;
+      display: block;
+    }
+
+    .value {
+      font-size: 1.28rem;
+      font-weight: 700;
+      color: var(--heading);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      font-size: 0.95rem;
+    }
+
+    th, td {
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #f3f4f6;
+      color: var(--heading);
+      font-weight: 700;
+    }
+
+    .right {
+      text-align: right;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      border: 1px solid transparent;
+    }
+
+    .tobilled { background: var(--primary-soft); color: var(--primary); }
+    .atopay { background: #fef3c7; color: var(--warning); }
+    .ftopay { background: #fee2e2; color: var(--danger); }
+
+    ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    .link-row {
+      margin-top: 14px;
+    }
+
+    a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    @media (max-width: 768px) {
+      .container { padding: 0 12px 30px; }
+      .header, .section { padding: 16px 14px; }
+      th, td { padding: 8px 10px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Broker Ledger Summary</h1>
+      <p class="subtext">Generated from the source sheet: Broker Ledger in Final Sheet Broker.xlsx</p>
+      <div class="link-row">
+        <a href="Broker_Ledger_Summary.md">Open Markdown version</a>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>1. Overview</h2>
+      <p>The workbook contains a single sheet named <strong>Broker Ledger</strong> with <strong>4 valid shipment records</strong> after excluding blank and repeated header rows.</p>
+    </div>
+
+    <div class="section">
+      <h2>2. Total Summary</h2>
+      <div class="stats">
+        <div class="stat-box">
+          <span class="label">Total Freight</span>
+          <div class="value">₹2,52,000</div>
+        </div>
+        <div class="stat-box">
+          <span class="label">Total Advance</span>
+          <div class="value">₹1,49,200</div>
+        </div>
+        <div class="stat-box">
+          <span class="label">Total P/M</span>
+          <div class="value">₹500</div>
+        </div>
+        <div class="stat-box">
+          <span class="label">Pending Amount</span>
+          <div class="value">₹24,500</div>
+        </div>
+        <div class="stat-box">
+          <span class="label">Extra Amount</span>
+          <div class="value">₹5,000</div>
+        </div>
+        <div class="stat-box">
+          <span class="label">COD / To-Pay</span>
+          <div class="value">₹82,000</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>3. Status-wise Breakdown</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th class="right">Count</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="pill to-billed">TOBILLED</span></td>
+            <td class="right">2</td>
+          </tr>
+          <tr>
+            <td><span class="pill atopay">A/TO-PAY</span></td>
+            <td class="right">1</td>
+          </tr>
+          <tr>
+            <td><span class="pill ftopay">F/TO-PAY</span></td>
+            <td class="right">1</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>4. Shipment-wise Details</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>SL No</th>
+            <th>Transport Name</th>
+            <th>Date</th>
+            <th>LR No</th>
+            <th>Truck No</th>
+            <th>From</th>
+            <th>To</th>
+            <th>Freight</th>
+            <th>Advance</th>
+            <th>Pending</th>
+            <th>Status</th>
+            <th>Remarks</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td>ANTP SAINATH</td>
+            <td>20-08-2026</td>
+            <td>207</td>
+            <td>AP39UD3564</td>
+            <td>LUCKNOW</td>
+            <td>MEDCHAL</td>
+            <td class="right">₹60,000</td>
+            <td class="right">₹49,700</td>
+            <td class="right">₹9,800</td>
+            <td><span class="pill to-billed">TOBILLED</span></td>
+            <td>-</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>SARITHA TRSP</td>
+            <td>03-09-2026</td>
+            <td>208</td>
+            <td>TG15T6666</td>
+            <td>RAIPUR</td>
+            <td>MEDCHAL</td>
+            <td class="right">₹60,000</td>
+            <td class="right">₹49,700</td>
+            <td class="right">₹14,700</td>
+            <td><span class="pill to-billed">TOBILLED</span></td>
+            <td>Halted</td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td>SARITHA TRSP</td>
+            <td>01-10-2026</td>
+            <td>196</td>
+            <td>TG15T6666</td>
+            <td>MEDCHAL</td>
+            <td>MADHAPURA</td>
+            <td class="right">₹90,000</td>
+            <td class="right">₹49,800</td>
+            <td class="right">₹0</td>
+            <td><span class="pill atopay">A/TO-PAY</span></td>
+            <td>-</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td>CG RANCHI R/WAYS</td>
+            <td>29-09-2026</td>
+            <td>195</td>
+            <td>CG08AZ4714</td>
+            <td>MEDCHAL</td>
+            <td>PANKANJUR</td>
+            <td class="right">₹42,000</td>
+            <td class="right">₹0</td>
+            <td class="right">₹0</td>
+            <td><span class="pill ftopay">F/TO-PAY</span></td>
+            <td>F/TO-PAY Shipment</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>5. Key Observations</h2>
+      <ul>
+        <li>Total freight across all entries is <strong>₹2,52,000</strong>.</li>
+        <li>Advance provided totals <strong>₹1,49,200</strong>.</li>
+        <li>Current pending balance stands at <strong>₹24,500</strong>.</li>
+        <li>Two shipments are marked as <strong>TOBILLED</strong> and two are pending or follow-up cases.</li>
+        <li>One record is marked as <strong>Halted</strong> and another as <strong>F/TO-PAY Shipment</strong>.</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>6. Final Conclusion</h2>
+      <p>The ledger indicates a total freight value of <strong>₹2,52,000</strong> with a current outstanding pending amount of <strong>₹24,500</strong>, and a notable COD / to-pay exposure of <strong>₹82,000</strong> from the flagged transactions. The records show a mix of billed, advance-paid, and pending-to-pay shipments that need follow-up for settlement and documentation.</p>
+    </div>
+  </div>
+</body>
+</html>

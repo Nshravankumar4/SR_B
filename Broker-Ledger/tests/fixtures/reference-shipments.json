@@ -1,0 +1,58 @@
+[
+  {
+    "slNo": 1,
+    "toPayStatus": "TOBILLED",
+    "freight": "60,000",
+    "tM": "300",
+    "advance": "49,700",
+    "advance2": "",
+    "advance3": "",
+    "extraAmount": "0",
+    "pM": "200",
+    "codToPay": "if Tobilled NA",
+    "pendingTobilled": 123,
+    "pendingAmount": 999
+  },
+  {
+    "slNo": 2,
+    "toPayStatus": "TOBILLED",
+    "freight": "₹60,000",
+    "tM": "300",
+    "advance": "49,700",
+    "advance2": "0",
+    "advance3": "0",
+    "extraAmount": "5,000",
+    "pM": "300",
+    "codToPay": "if Tobilled NA",
+    "pendingTobilled": 123,
+    "pendingAmount": 999
+  },
+  {
+    "slNo": 4,
+    "toPayStatus": "A/TO-PAY",
+    "freight": "90,000",
+    "tM": "200",
+    "advance": "49,800",
+    "advance2": "0",
+    "advance3": "0",
+    "extraAmount": "",
+    "pM": "",
+    "codToPay": 40000,
+    "pendingTobilled": 123,
+    "pendingAmount": 999
+  },
+  {
+    "slNo": 3,
+    "toPayStatus": "F/TO-PAY",
+    "freight": "42,000",
+    "tM": "",
+    "advance": "",
+    "advance2": "",
+    "advance3": "",
+    "extraAmount": "",
+    "pM": "",
+    "codToPay": "42,000",
+    "pendingTobilled": 123,
+    "pendingAmount": 999
+  }
+]
