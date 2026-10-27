@@ -369,6 +369,7 @@
     state.loadError = '';
     setCloudStatus(true, 'Cloud connected');
     byId('footer-sync').textContent = 'Last synced ' + new Date().toLocaleTimeString();
+    updateAutocompleteSuggestions();
     render();
   }
   async function checkForUpdates() {
@@ -419,13 +420,94 @@
     showAuth('Your session could not be verified: ' + error.message);
     }
   }
+  function updateAutocompleteSuggestions() {
+    const records = state.records || [];
+    function getUnique(key, toUpper) {
+      const set = new Set();
+      records.forEach(function (r) {
+        if (!r) return;
+        const val = String(r[key] || '').trim();
+        if (val) set.add(toUpper ? val.toUpperCase() : val);
+      });
+      return Array.from(set).sort();
+    }
+
+    const hubSuggestions = ['MEDCHAL', 'WARANGAL', 'HYDERABAD', 'RAIPUR', 'LUCKNOW', 'PANKANJUR', 'MADHAPURA', 'NAGPUR', 'MUMBAI'];
+    const fromCities = Array.from(new Set(getUnique('from', true).concat(hubSuggestions))).sort();
+    const toCities = Array.from(new Set(getUnique('to', true).concat(hubSuggestions))).sort();
+
+    function populateDatalist(id, list) {
+      const el = byId(id);
+      if (!el) return;
+      el.innerHTML = list.map(function (item) {
+        return '<option value="' + escapeHtml(item) + '">';
+      }).join('');
+    }
+
+    populateDatalist('transport-suggestions', getUnique('transportName', false));
+    populateDatalist('truck-suggestions', getUnique('truckNo', true));
+    populateDatalist('from-suggestions', fromCities);
+    populateDatalist('to-suggestions', toCities);
+    populateDatalist('bank-suggestions', getUnique('bank', false));
+    populateDatalist('account-suggestions', getUnique('accountNo', false));
+    populateDatalist('ifsc-suggestions', getUnique('ifscCode', true));
+  }
+
+  function handleTransporterAutofill(transporterName) {
+    if (!transporterName || state.formMode === 'view') return;
+    const clean = String(transporterName).trim().toLowerCase();
+    if (!clean) return;
+    const form = byId('shipment-form');
+    if (!form) return;
+
+    const records = (state.records || []).slice().reverse();
+    const match = records.find(function (r) {
+      return String(r.transportName || '').trim().toLowerCase() === clean;
+    });
+
+    if (match) {
+      // PRESERVATION: Only autofill empty bank fields; never overwrite existing values or clear them
+      if (form.elements.accountNo && !form.elements.accountNo.value.trim() && match.accountNo) {
+        form.elements.accountNo.value = match.accountNo;
+      }
+      if (form.elements.ifscCode && !form.elements.ifscCode.value.trim() && match.ifscCode) {
+        form.elements.ifscCode.value = match.ifscCode;
+      }
+      if (form.elements.bank && !form.elements.bank.value.trim() && match.bank) {
+        form.elements.bank.value = match.bank;
+      }
+    }
+  }
+
+  function handleTruckAutofill(truckNo) {
+    if (!truckNo || state.formMode === 'view') return;
+    const clean = String(truckNo).trim().toUpperCase();
+    if (!clean) return;
+    const form = byId('shipment-form');
+    if (!form) return;
+
+    const records = (state.records || []).slice().reverse();
+    const match = records.find(function (r) {
+      return String(r.truckNo || '').trim().toUpperCase() === clean;
+    });
+
+    if (match) {
+      if (form.elements.transportName && !form.elements.transportName.value.trim() && match.transportName) {
+        form.elements.transportName.value = match.transportName;
+        handleTransporterAutofill(match.transportName);
+      }
+    }
+  }
+
   function formRecord() {
-    const formData = new FormData(byId('shipment-form'));
+    const form = byId('shipment-form');
+    if (!form) return {};
     const record = {};
     FIELD_ORDER.forEach(function (field) {
-    if (field === 'slNo' || field === 'pendingTobilled' || field === 'pendingAmount') return;
-    const value = formData.get(field);
-    record[field] = value === null ? '' : String(value).trim();
+      if (field === 'slNo' || field === 'pendingTobilled' || field === 'pendingAmount') return;
+      const el = form.elements[field];
+      const value = el ? el.value : '';
+      record[field] = value === null || value === undefined ? '' : String(value).trim();
     });
     record.toPayStatus = CALC.normalizeStatus(record.toPayStatus);
     const calculated = CALC.calculateShipment(record);
@@ -434,6 +516,7 @@
     record.pendingAmount = calculated.pendingAmount;
     return record;
   }
+
   function updateFormCalculations() {
     if (!byId('shipment-form')) return;
     const form = byId('shipment-form');
@@ -443,21 +526,28 @@
       if (codInput.readOnly) codInput.value = state.codToPayNote;
       codInput.readOnly = false;
       codInput.classList.remove('calculated-field');
-      state.codToPayNote = codInput.value;
+      if (document.activeElement === codInput) {
+        state.codToPayNote = codInput.value;
+      }
     } else {
       codInput.readOnly = true;
       codInput.classList.add('calculated-field');
     }
     const record = formRecord();
     const computed = CALC.calculateShipment(record);
-    codInput.value = status === 'TOBILLED'
-      ? state.codToPayNote
-      : (computed.codToPay === null ? '' : CALC.fromPaise(Math.round(computed.codToPay * 100)).toLocaleString('en-IN'));
+    if (status !== 'TOBILLED') {
+      codInput.value = computed.codToPay === null
+        ? ''
+        : CALC.fromPaise(Math.round(computed.codToPay * 100)).toLocaleString('en-IN');
+    } else if (document.activeElement !== codInput && !codInput.value) {
+      codInput.value = state.codToPayNote;
+    }
     byId('shipment-form').elements.pendingTobilled.value =
-    computed.pendingTobilled === null ? '' : CALC.fromPaise(Math.round(computed.pendingTobilled * 100)).toLocaleString('en-IN');
+      computed.pendingTobilled === null ? '' : CALC.fromPaise(Math.round(computed.pendingTobilled * 100)).toLocaleString('en-IN');
     byId('shipment-form').elements.pendingAmount.value =
-    computed.pendingAmount === null ? '' : CALC.fromPaise(Math.round(computed.pendingAmount * 100)).toLocaleString('en-IN');
+      computed.pendingAmount === null ? '' : CALC.fromPaise(Math.round(computed.pendingAmount * 100)).toLocaleString('en-IN');
   }
+
   function setFormValues(record) {
     const form = byId('shipment-form');
     form.reset();
@@ -467,50 +557,76 @@
       : 'if Tobilled NA';
     if (!record) state.codToPayNote = 'if Tobilled NA';
     FIELD_ORDER.forEach(function (field) {
-    if (field === 'slNo') return;
-    const input = form.elements[field];
-    if (!input) return;
-    let value = record && record[field] !== null && record[field] !== undefined ? record[field] : '';
-    if (field === 'toPayStatus') value = CALC.normalizeStatus(value);
-    if (DATE_FIELDS.has(field)) value = toDateInput(value);
-    if (field === 'pendingTobilled' || field === 'pendingAmount') {
-      value = value === '' || value === null ? '' : displayMoney(value).replace(/^₹/, '');
-    }
-    input.value = value;
+      if (field === 'slNo') return;
+      const input = form.elements[field];
+      if (!input) return;
+      let value = record && record[field] !== null && record[field] !== undefined ? record[field] : '';
+      if (field === 'toPayStatus') value = CALC.normalizeStatus(value);
+      if (DATE_FIELDS.has(field)) value = toDateInput(value);
+      if (field === 'pendingTobilled' || field === 'pendingAmount') {
+        value = value === '' || value === null ? '' : displayMoney(value).replace(/^₹/, '');
+      }
+      input.value = value;
     });
+
+    if (!record) {
+      if (form.elements.date && !form.elements.date.value) {
+        form.elements.date.value = new Date().toISOString().split('T')[0];
+      }
+      if (form.elements.toPayStatus && !form.elements.toPayStatus.value) {
+        form.elements.toPayStatus.value = 'TOBILLED';
+      }
+    }
     updateFormCalculations();
   }
+
   function openShipmentDialog(mode, id) {
+    const isView = mode === 'view';
     const existing = id ? state.records.find(function (record) { return record.id === id; }) : null;
     if (id && !existing) {
-    toast('This shipment is no longer available. Refresh the ledger and try again.', 'error');
-    return;
+      toast('This shipment is no longer available. Refresh the ledger and try again.', 'error');
+      return;
     }
     state.editingId = id || null;
     state.editingUpdatedAt = existing && existing.updatedAt ? String(existing.updatedAt) : '';
-    state.formMode = mode;
+    state.formMode = isView ? 'view' : (id ? 'edit' : 'add');
     const form = byId('shipment-form');
+    updateAutocompleteSuggestions();
     setFormValues(existing);
-    const viewOnly = mode === 'view';
+
     Array.from(form.elements).forEach(function (element) {
-    if (element.name) element.disabled = viewOnly || element.readOnly;
+      if (element.name) {
+        element.disabled = isView;
+        if (!isView && (element.name === 'pendingTobilled' || element.name === 'pendingAmount')) {
+          element.readOnly = true;
+        }
+      }
     });
-    byId('save-shipment').hidden = viewOnly;
-    byId('cancel-dialog').textContent = viewOnly ? 'Close' : 'Cancel';
-    byId('shipment-dialog-title').textContent = viewOnly ? 'Shipment Details' : (existing ? 'Edit Shipment' : 'Add Shipment');
+
+    const saveBtn = byId('save-shipment');
+    if (saveBtn) {
+      saveBtn.hidden = isView;
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save Shipment';
+    }
+    byId('cancel-dialog').textContent = isView ? 'Close' : 'Cancel';
+    byId('shipment-dialog-title').textContent = isView ? 'Shipment Details' : (existing ? 'Edit Shipment' : 'Add Shipment');
     byId('form-error').hidden = true;
     byId('shipment-dialog').showModal();
   }
+
   function closeShipmentDialog() {
     if (byId('shipment-dialog').open) byId('shipment-dialog').close();
     state.editingId = null;
     state.editingUpdatedAt = '';
   }
+
   function errorList(errors) {
     return Object.keys(errors).map(function (field) {
-    return (LABELS[field] || field) + ': ' + errors[field];
+      return (LABELS[field] || field) + ': ' + errors[field];
     }).join(' ');
   }
+
   async function saveShipment(event) {
     event.preventDefault();
     if (state.busy || state.formMode === 'view') return;
@@ -518,11 +634,34 @@
     const validation = VALIDATION.validateShipment(record);
     const errorBox = byId('form-error');
     if (!validation.valid) {
-    errorBox.textContent = errorList(validation.errors);
-    errorBox.hidden = false;
-    return;
+      errorBox.textContent = errorList(validation.errors);
+      errorBox.hidden = false;
+      return;
     }
+
+    // Client-side duplicate check (LR No + Date + Truck No)
+    const recordIdentity = [record.lrNo, record.date, record.truckNo].map(function (v) {
+      return String(v || '').trim().toLowerCase();
+    }).join('|');
+    const isDuplicate = state.records.some(function (item) {
+      if (state.editingId && item.id === state.editingId) return false;
+      const itemIdentity = [item.lrNo, item.date, item.truckNo].map(function (v) {
+        return String(v || '').trim().toLowerCase();
+      }).join('|');
+      return itemIdentity === recordIdentity;
+    });
+    if (isDuplicate) {
+      errorBox.textContent = 'A shipment with this LR No, date, and truck already exists.';
+      errorBox.hidden = false;
+      return;
+    }
+
+    const saveBtn = byId('save-shipment');
     const isEditing = Boolean(state.editingId);
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving…';
+    }
     setBusy(true);
     let response;
     try {
@@ -539,11 +678,16 @@
       }
       errorBox.hidden = false;
       setBusy(false);
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save Shipment';
+      }
       return;
     }
     closeShipmentDialog();
     try {
       await refreshRecords();
+      updateAutocompleteSuggestions();
       toast((isEditing ? 'Shipment updated.' : 'Shipment saved.') + (response.warning ? ' ' + response.warning : ''), response.warning ? 'error' : 'success');
     } catch (error) {
       setCloudStatus(false, 'Offline — last data may be stale');
@@ -551,6 +695,10 @@
       toast((isEditing ? 'Shipment updated.' : 'Shipment saved.') + ' Refresh failed: ' + error.message, 'error');
     } finally {
       setBusy(false);
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save Shipment';
+      }
     }
   }
   async function deleteShipment(id) {
@@ -835,7 +983,7 @@
         toast(error.message, 'error');
       });
     });
-    byId('add-shipment-top').addEventListener('click', function () { openShipmentDialog('edit'); });
+    byId('add-shipment-top').addEventListener('click', function () { openShipmentDialog('add'); });
     byId('close-dialog').addEventListener('click', closeShipmentDialog);
     byId('cancel-dialog').addEventListener('click', closeShipmentDialog);
     byId('shipment-dialog').addEventListener('click', function (event) {
@@ -844,6 +992,42 @@
     byId('shipment-form').addEventListener('input', updateFormCalculations);
     byId('shipment-form').addEventListener('change', updateFormCalculations);
     byId('shipment-form').addEventListener('submit', saveShipment);
+
+    const sForm = byId('shipment-form');
+    if (sForm) {
+      if (sForm.elements.transportName) {
+        sForm.elements.transportName.addEventListener('input', function () {
+          handleTransporterAutofill(this.value);
+        });
+        sForm.elements.transportName.addEventListener('change', function () {
+          handleTransporterAutofill(this.value);
+        });
+      }
+      if (sForm.elements.truckNo) {
+        sForm.elements.truckNo.addEventListener('input', function () {
+          this.value = this.value.toUpperCase();
+          handleTruckAutofill(this.value);
+        });
+        sForm.elements.truckNo.addEventListener('change', function () {
+          handleTruckAutofill(this.value);
+        });
+      }
+      if (sForm.elements.ifscCode) {
+        sForm.elements.ifscCode.addEventListener('input', function () {
+          this.value = this.value.toUpperCase();
+        });
+      }
+      if (sForm.elements.from) {
+        sForm.elements.from.addEventListener('input', function () {
+          this.value = this.value.toUpperCase();
+        });
+      }
+      if (sForm.elements.to) {
+        sForm.elements.to.addEventListener('input', function () {
+          this.value = this.value.toUpperCase();
+        });
+      }
+    }
     byId('sidebar-open').addEventListener('click', function () { toggleSidebar(true); });
     byId('sidebar-close').addEventListener('click', function () { toggleSidebar(false); });
     byId('sidebar-scrim').addEventListener('click', function () { toggleSidebar(false); });
@@ -879,7 +1063,7 @@
     const button = event.target.closest('[data-action]');
     if (!button) return;
     const action = button.dataset.action;
-    if (action === 'add-shipment') openShipmentDialog('edit');
+    if (action === 'add-shipment') openShipmentDialog('add');
     if (action === 'go-sheet') { state.view = 'sheet'; render(); }
     if (action === 'go-ledger') { state.view = 'ledger'; render(); }
     if (action === 'sort') {
@@ -935,6 +1119,12 @@
     showAuth('Your session expired. Please sign in again.');
     });
   }
+
+  window.BrokerAutocomplete = {
+    updateSuggestions: updateAutocompleteSuggestions,
+    handleTransporter: handleTransporterAutofill,
+    handleTruck: handleTruckAutofill
+  };
 
   bindEvents();
   if (!window.BrokerApi.configured() && new URLSearchParams(location.search).get('preview') === '1') {

@@ -93,6 +93,15 @@
   </div>
 
   <dialog id="shipment-dialog" class="modal">
+    <!-- Datalist Autocomplete Elements for Existing Records -->
+    <datalist id="transport-suggestions"></datalist>
+    <datalist id="truck-suggestions"></datalist>
+    <datalist id="from-suggestions"></datalist>
+    <datalist id="to-suggestions"></datalist>
+    <datalist id="bank-suggestions"></datalist>
+    <datalist id="account-suggestions"></datalist>
+    <datalist id="ifsc-suggestions"></datalist>
+
     <form id="shipment-form" novalidate>
       <header class="modal-header">
         <div><p class="eyebrow">SHIPMENT RECORD</p><h2 id="shipment-dialog-title">Add Shipment</h2></div>
@@ -102,12 +111,12 @@
       <section class="form-section" aria-labelledby="shipment-info-title">
         <h3 id="shipment-info-title" class="form-section-title"><span>📦 Shipment Information</span></h3>
         <div class="form-grid">
-          <label>Transport name <span class="required">*</span><input name="transportName" maxlength="120" required></label>
+          <label>Transport name <span class="required">*</span><input name="transportName" list="transport-suggestions" maxlength="120" placeholder="Select or type transporter" required></label>
           <label>Shipment date <span class="required">*</span><input name="date" type="date" required></label>
-          <label>LR No <span class="required">*</span><input name="lrNo" maxlength="60" required></label>
-          <label>Truck No <span class="required">*</span><input name="truckNo" maxlength="40" required></label>
-          <label>From <span class="required">*</span><input name="from" maxlength="100" required></label>
-          <label>To <span class="required">*</span><input name="to" maxlength="100" required></label>
+          <label>LR No <span class="required">*</span><input name="lrNo" maxlength="60" placeholder="e.g. 207" required></label>
+          <label>Truck No <span class="required">*</span><input name="truckNo" list="truck-suggestions" maxlength="40" placeholder="e.g. AP39UD3564" style="text-transform: uppercase;" required></label>
+          <label>From <span class="required">*</span><input name="from" list="from-suggestions" maxlength="100" placeholder="Origin city" style="text-transform: uppercase;" required></label>
+          <label>To <span class="required">*</span><input name="to" list="to-suggestions" maxlength="100" placeholder="Destination city" style="text-transform: uppercase;" required></label>
         </div>
       </section>
       <section class="form-section" aria-labelledby="payment-info-title">
@@ -135,12 +144,12 @@
       <section class="form-section" aria-labelledby="bank-pod-title">
         <h3 id="bank-pod-title" class="form-section-title"><span>🏦 Bank &amp; POD Details</span></h3>
         <div class="form-grid">
-          <label>Account No<input name="accountNo" maxlength="40" autocomplete="off"></label>
-          <label>IFSC<input name="ifscCode" maxlength="20" autocapitalize="characters"></label>
-          <label>Bank<input name="bank" maxlength="100"></label>
+          <label>Account No<input name="accountNo" list="account-suggestions" maxlength="40" autocomplete="off" placeholder="Bank account number"></label>
+          <label>IFSC<input name="ifscCode" list="ifsc-suggestions" maxlength="20" autocapitalize="characters" placeholder="e.g. SBIN0010659" style="text-transform: uppercase;"></label>
+          <label>Bank<input name="bank" list="bank-suggestions" maxlength="100" placeholder="Bank name / payment mode"></label>
           <label>POD received date<input name="podReceivedDate" type="date"></label>
-          <label>POD Amount Status<input name="podAmountStatus" maxlength="100"></label>
-          <label class="form-span">Remarks<input name="remarks" maxlength="500"></label>
+          <label>POD Amount Status<input name="podAmountStatus" maxlength="100" placeholder="Status or note"></label>
+          <label class="form-span">Remarks<input name="remarks" maxlength="500" placeholder="Optional notes"></label>
         </div>
       </section>
       <section class="form-section calculation-section" aria-labelledby="calculation-title">

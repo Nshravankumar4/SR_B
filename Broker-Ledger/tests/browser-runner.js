@@ -105,6 +105,77 @@
     rows[3].codToPay = 'stale';
     equal(c.summarize(rows).codToPayPaise, 8200000);
   });
+  check('duplicate detection identifies matching LR No, date, and truck while allowing editing', function () {
+    const existing = [
+      { id: 'rec-1', lrNo: 'LR-100', date: '2026-10-27', truckNo: 'AP39UD3564' },
+      { id: 'rec-2', lrNo: 'LR-101', date: '2026-10-28', truckNo: 'TG15T6666' }
+    ];
+    function isDup(candidate, editingId) {
+      const candidateKey = [candidate.lrNo, candidate.date, candidate.truckNo].map(function (v) { return String(v || '').trim().toLowerCase(); }).join('|');
+      return existing.some(function (item) {
+        if (editingId && item.id === editingId) return false;
+        const itemKey = [item.lrNo, item.date, item.truckNo].map(function (v) { return String(v || '').trim().toLowerCase(); }).join('|');
+        return itemKey === candidateKey;
+      });
+    }
+    equal(isDup({ lrNo: 'LR-100', date: '2026-10-27', truckNo: 'AP39UD3564' }, null), true);
+    equal(isDup({ lrNo: ' lr-100 ', date: '2026-10-27', truckNo: 'ap39ud3564' }, null), true);
+    equal(isDup({ lrNo: 'LR-100', date: '2026-10-27', truckNo: 'AP39UD3564' }, 'rec-1'), false);
+    equal(isDup({ lrNo: 'LR-102', date: '2026-10-27', truckNo: 'AP39UD3564' }, null), false);
+    equal(isDup({ lrNo: 'LR-100', date: '2026-10-29', truckNo: 'AP39UD3564' }, null), false);
+  });
+  check('form status changes preserve advance, deduction, and note values without destructive clearing', function () {
+    const original = {
+      toPayStatus: 'TOBILLED',
+      freight: '60,000',
+      tM: '300',
+      advance: '40,000',
+      advance2: '5,000',
+      advance3: '2,000',
+      extraAmount: '3,000',
+      pM: '500',
+      codToPay: 'Custom note',
+      accountNo: '123456789',
+      ifscCode: 'SBIN0010659',
+      bank: 'SBI BANK'
+    };
+    const toPay = c.calculateShipment(Object.assign({}, original, { toPayStatus: 'A/TO-PAY' }));
+    equal(toPay.codToPay, 12700);
+    equal(toPay.pendingAmount, 7000);
+    equal(toPay.pendingTobilled, null);
+    equal(original.advance2, '5,000');
+    equal(original.accountNo, '123456789');
+  });
+  check('negative balance calculation preservation without artificial clamping to zero', function () {
+    const record = {
+      toPayStatus: 'TOBILLED',
+      freight: '20,000',
+      tM: '0',
+      advance: '25,000',
+      advance2: '',
+      advance3: '',
+      extraAmount: '0',
+      pM: '0'
+    };
+    const result = c.calculateShipment(record);
+    equal(result.pendingTobilled, -5000);
+    equal(result.pendingAmount, -5000);
+  });
+  check('decimal paise precision and Indian comma grouping', function () {
+    const record = {
+      toPayStatus: 'TOBILLED',
+      freight: '60,000.75',
+      tM: '300.25',
+      advance: '49,700.50',
+      advance2: '',
+      advance3: '',
+      extraAmount: '5,000',
+      pM: '200'
+    };
+    const result = c.calculateShipment(record);
+    equal(result.pendingTobilled, 10000);
+    equal(result.pendingAmount, 14800);
+  });
   function renderResults() {
     const list = document.getElementById('test-results');
     list.textContent = '';
