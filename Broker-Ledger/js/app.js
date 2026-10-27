@@ -178,8 +178,8 @@
         summary.statusCounts[status] + ' shipment' + (summary.statusCounts[status] === 1 ? '' : 's') + '</span></article>';
     }).join('');
     return '<section class="dashboard-hero-banner"><div class="banner-welcome">' +
-      '<h2>Hello, ' + escapeHtml(userName || 'there') + '</h2>' +
-      '<p>Shipment activity, broker settlements, and live financial reconciliation.</p></div>' +
+      '<h2>👋 Hello, ' + escapeHtml(userName || 'there') + '! Welcome to Shinex Broker Ledger &amp; Dashboard</h2>' +
+      '<p>Real-time freight billing and transparent broker settlement reconciliation.</p></div>' +
       '<div class="banner-quick-actions">' +
       (state.preview ? '' : '<button class="btn btn-primary" type="button" data-action="add-shipment">＋ Add Shipment</button>') +
       '<button class="btn btn-secondary" type="button" data-action="go-sheet">View Excel Sheet</button>' +
@@ -243,9 +243,10 @@
       '<td class="numeric">' + formatMoneyPaise(summary.extraAmountPaise) + '</td>' +
       '<td></td><td class="numeric">' + formatMoneyPaise(summary.pMPaise) + '</td>' +
       '<td class="numeric">' + formatMoneyPaise(summary.pendingAmountPaise) + '</td><td colspan="3"></td></tr>';
-    return '<section class="panel"><div class="toolbar"><div class="toolbar-help">Spreadsheet view uses the same calculation and filter results as the ledger.</div>' +
-      '<div class="view-actions"><button class="btn btn-secondary" type="button" data-action="refresh">Refresh</button><div class="zoom-controls"><label for="sheet-zoom">Zoom</label><select id="sheet-zoom"><option value="0.8">80%</option><option value="0.9">90%</option><option value="1" selected>100%</option><option value="1.15">115%</option></select></div>' +
-      '<button class="btn btn-secondary" type="button" data-action="fullscreen">Full screen</button><button class="btn btn-secondary" type="button" data-action="print">Print</button><button class="btn btn-primary" type="button" data-action="export">Export Excel</button></div></div>' +
+    return '<section class="panel"><div class="toolbar"><div class="sheet-toolbar-heading"><h2>📑 Live Excel Spreadsheet View</h2>' +
+      '<p class="toolbar-help">Live shipment rows, totals, and calculations from the Broker Ledger.</p></div>' +
+      '<div class="view-actions"><button class="btn btn-secondary" type="button" data-action="refresh">↻ Refresh</button><div class="zoom-controls"><label for="sheet-zoom">Zoom</label><select id="sheet-zoom"><option value="0.8">80%</option><option value="0.9">90%</option><option value="1" selected>100%</option><option value="1.15">115%</option></select></div>' +
+      '<button class="btn btn-secondary" type="button" data-action="fullscreen">⛶ Full Screen</button><button class="btn btn-secondary" type="button" data-action="print">🖨 Print</button><button class="btn btn-primary" type="button" data-action="export">Download Excel (.xlsx)</button></div></div>' +
       '<div class="table-meta"><span>' + state.filtered.length + ' rows</span><span>Calculated columns are highlighted.</span></div>' +
       '<div id="sheet-wrap" class="sheet-wrap" tabindex="0" aria-label="Spreadsheet-style shipment ledger"><table class="sheet-table"><thead><tr>' +
       FIELD_ORDER.map(function (field) { return headerCell(field, true); }).join('') + '</tr></thead><tbody>' + rows + '</tbody><tfoot>' + totals + '</tfoot></table></div>' +
@@ -720,6 +721,13 @@
     byId('login-form').addEventListener('submit', handleLogin);
     byId('toggle-password').addEventListener('click', togglePasswordVisibility);
     byId('logout-button').addEventListener('click', logout);
+    byId('manual-sync-button').addEventListener('click', function () {
+      refreshRecords().catch(function (error) {
+        setCloudStatus(false, 'Offline — last data may be stale');
+        byId('footer-sync').textContent = 'Sync failed: ' + error.message;
+        toast(error.message, 'error');
+      });
+    });
     byId('add-shipment-top').addEventListener('click', function () { openShipmentDialog('edit'); });
     byId('close-dialog').addEventListener('click', closeShipmentDialog);
     byId('cancel-dialog').addEventListener('click', closeShipmentDialog);

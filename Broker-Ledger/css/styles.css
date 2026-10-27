@@ -63,6 +63,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .nav-tab:hover { color: white; background: rgb(255 255 255 / 8%); }
 .nav-tab.active { color: white; background: linear-gradient(135deg, #1e3a8a, #0284c7); border-color: rgb(125 211 252 / 35%); box-shadow: 0 4px 12px rgb(2 132 199 / 25%); }
 .sidebar-footer { padding: .9rem; display: grid; gap: .65rem; border-top: 1px solid rgb(255 255 255 / 9%); }
+.app-sidebar > .sidebar-status-row { margin: .25rem 1rem 0; }
 .status-indicator { display: flex; gap: .5rem; align-items: center; color: #cbd5e1; font-size: .78rem; }
 .status-dot { flex: 0 0 8px; height: 8px; border-radius: 50%; background: #64748b; }
 .status-dot.online { background: #22c55e; box-shadow: 0 0 0 3px rgb(34 197 94 / 20%); }
@@ -148,14 +149,21 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 
 .modal { width: min(920px, calc(100vw - 1.5rem)); max-height: min(92vh, 900px); padding: 0; border: 0; border-radius: 12px; box-shadow: 0 20px 60px rgb(0 0 0 / 35%); }
 .modal::backdrop { background: rgb(15 23 42 / 65%); }
-.modal form { padding: 1.2rem 1.35rem 1.1rem; }
+.modal form { max-height: min(92vh, 900px); overflow-y: auto; padding: 1.2rem 1.35rem 1.1rem; }
 .modal-header { display: flex; align-items: center; justify-content: space-between; padding-bottom: .7rem; margin-bottom: .8rem; border-bottom: 1px solid var(--border); }
 .modal-header h2 { margin: 0; color: var(--navy); }
+.form-section { padding: 1rem; margin-top: .9rem; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
+.form-section-title { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin: 0 0 .85rem; padding-bottom: .65rem; border-bottom: 1px solid #e8edf3; color: var(--navy); font-size: .94rem; font-weight: 800; }
 .form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .7rem .8rem; }
-.form-grid label { display: grid; gap: .25rem; }
-.form-grid input, .form-grid select { font-size: .85rem; }
+.form-grid label, .calculation-results label { display: grid; gap: .3rem; color: #334155; font-size: .8rem; font-weight: 700; }
+.form-grid input, .form-grid select, .calculation-results input { width: 100%; min-width: 0; padding: .65rem .75rem; border: 1px solid #cbd5e1; border-radius: 7px; color: var(--text); background: white; font: inherit; font-size: .85rem; }
+.form-grid input:focus, .form-grid select:focus, .calculation-results input:focus { outline: 2px solid rgb(2 132 199 / 25%); border-color: var(--accent); }
 .form-grid .form-span { grid-column: span 3; }
 .form-grid .calculated-field { background: #ecfdf5; color: #065f46; font-weight: 750; }
+.calculation-results { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; }
+.calculation-result { padding: .75rem; border: 1px solid #bbf7d0; border-radius: 8px; background: linear-gradient(135deg, #f0fdf4, #ecfdf5); }
+.calculation-result-final { border-color: #bfdbfe; background: linear-gradient(135deg, #eff6ff, #f0f9ff); }
+.calculation-results .calculated-field { color: #065f46; font-size: 1rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 .required { color: var(--danger); }
 .modal-actions { display: flex; justify-content: end; gap: .6rem; margin-top: 1rem; }
 .toast { position: fixed; right: 1rem; bottom: 1rem; z-index: 200; display: none; max-width: min(440px, calc(100vw - 2rem)); padding: .8rem 1rem; color: white; background: var(--navy); border-radius: 8px; box-shadow: var(--shadow); font-size: .86rem; }
@@ -221,6 +229,16 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
   box-shadow: 0 20px 50px rgb(0 0 0 / 25%);
 }
 .auth-header { margin-bottom: 1.65rem; }
+.auth-developer-credit {
+  margin-top: 1.25rem;
+  padding-top: .85rem;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: .76rem;
+  line-height: 1.7;
+  text-align: center;
+}
+.auth-developer-credit strong { color: var(--primary); }
 .brand-mark {
   width: 58px;
   height: 58px;
@@ -264,6 +282,18 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
   background: rgb(2 132 199 / 25%);
   border: 1px solid rgb(56 189 248 / 35%);
 }
+.user-details .user-role-badge {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: .1rem;
+  padding: .08rem .45rem;
+  border-radius: 4px;
+  color: #93c5fd;
+  background: #1e3a8a;
+  font-size: .65rem;
+  font-weight: 800;
+  letter-spacing: .04em;
+}
 .sidebar-menu {
   padding: 1rem .75rem;
   gap: .35rem;
@@ -286,7 +316,9 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
   gap: .75rem;
   background: rgb(15 23 42 / 95%);
 }
+.sidebar-status-row { display: flex; align-items: center; gap: .45rem; }
 .status-indicator {
+  flex: 1;
   min-width: 0;
   padding: .4rem .65rem;
   overflow: hidden;
@@ -296,8 +328,30 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
   border-radius: 6px;
   background: rgb(255 255 255 / 4%);
 }
+.sidebar-sync-button {
+  flex: 0 0 auto;
+  padding: .3rem .45rem;
+  border: 1px solid rgb(255 255 255 / 15%);
+  border-radius: 6px;
+  color: #cbd5e1;
+  background: rgb(255 255 255 / 8%);
+  font-size: .72rem;
+  font-weight: 650;
+}
+.sidebar-sync-button:hover { color: #fff; background: rgb(255 255 255 / 15%); }
 .status-dot.online { box-shadow: 0 0 0 2px rgb(34 197 94 / 25%); }
-.sidebar-logout-btn { width: 100%; padding: .6rem 1rem; }
+.sidebar-menu .sidebar-logout-btn {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: .85rem;
+  width: 100%;
+  margin-top: .15rem;
+  padding: .75rem 1rem;
+  border-radius: 8px;
+  text-align: left;
+}
+.sidebar-menu .sidebar-logout-btn span { width: 1.5rem; flex: 0 0 1.5rem; text-align: center; }
 .app-content { padding: 1.5rem 1.6rem 2rem; }
 .dashboard-hero-banner {
   display: flex;
@@ -317,6 +371,10 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
   color: #fff;
   font-size: 1.4rem;
 }
+.sheet-toolbar-heading { min-width: min(100%, 280px); }
+.sheet-toolbar-heading h2 { margin: 0 0 .2rem; color: var(--navy); font-size: 1.08rem; }
+.sheet-toolbar-heading p { margin: 0; }
+.sheet-toolbar-heading + .view-actions { justify-content: flex-end; }
 .banner-welcome p { margin: 0; color: #bae6fd; font-size: .9rem; }
 .banner-quick-actions { display: flex; flex-wrap: wrap; gap: .6rem; }
 .dashboard-hero-banner .btn-secondary {
@@ -391,11 +449,13 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
   .banner-quick-actions { width: 100%; }
   .banner-quick-actions .btn { flex: 1 1 135px; }
   .app-footer { justify-content: center; text-align: center; font-size: .66rem; }
+  .sheet-toolbar-heading + .view-actions { justify-content: flex-start; }
 }
 @media (max-width: 480px) {
   .app-content { padding: .85rem .75rem 1.25rem; }
   .mobile-top-bar { padding: .65rem .85rem; gap: .5rem; }
-  .mobile-top-bar strong { font-size: .9rem; }
+  .mobile-top-bar strong { flex: 1; font-size: .9rem; }
+  .mobile-top-icon { font-size: 1.1rem; }
   .mobile-top-bar span { max-width: 38vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .dashboard-hero-banner { gap: .9rem; padding: 1rem; }
   .banner-quick-actions { display: grid; grid-template-columns: 1fr; }

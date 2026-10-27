@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0f172a">
-  <meta name="description" content="Broker Ledger shipment and financial tracking application">
-  <title>Broker Ledger</title>
+  <meta name="description" content="Shinex Broker Ledger shipment and financial tracking application">
+  <title>Shinex Broker Ledger</title>
   <link rel="stylesheet" href="Broker-Ledger/css/styles.css">
   <script defer src="Broker-Ledger/libs/xlsx.full.min.js"></script>
   <script defer src="Broker-Ledger/js/config.js"></script>
@@ -19,9 +19,9 @@
   <section id="auth-view" class="auth-wrapper">
     <div class="auth-card">
       <header class="auth-header">
-        <div class="brand-mark" aria-hidden="true">B</div>
-        <p class="eyebrow">BROKERAGE &amp; ACCOUNTS</p>
-        <h1>Broker Ledger</h1>
+        <div class="brand-mark" aria-hidden="true">🚛</div>
+        <p class="eyebrow">TRANSPORT &amp; ACCOUNTS</p>
+        <h1>Shinex Ledger</h1>
         <p>Sign in to manage shipment and settlement records.</p>
       </header>
       <div id="auth-message" class="notice notice-info" role="status" aria-live="polite"></div>
@@ -35,40 +35,45 @@
         </div>
         <button id="login-button" class="btn btn-primary btn-block" type="submit">Secure Login</button>
       </form>
-      <p class="auth-footnote">Accounts are provisioned in the Broker Ledger Google Apps Script backend.</p>
+      <div class="auth-developer-credit">Developed by <strong>Shravan Kumar</strong><br>Enterprise Freight &amp; Fleet Management</div>
     </div>
-    <footer class="auth-footer">Broker Ledger <span>Independent shipment ledger</span></footer>
+    <footer class="auth-footer">
+      <span>🚛 <strong>SHINEX LEDGER</strong> · Enterprise Freight &amp; Fleet Management System</span>
+      <span>© 2026 Shinex UQ Genetic Seeds Pvt. Ltd. · Developed by <strong>Shravan Kumar</strong> · All Rights Reserved</span>
+    </footer>
   </section>
 
   <div id="app-shell" class="app-layout" hidden>
     <aside id="sidebar" class="app-sidebar">
       <div class="sidebar-header">
         <div class="sidebar-brand">
-          <div class="brand-icon" aria-hidden="true">B</div>
-          <div><h2>Broker Ledger</h2><span>Transport &amp; Accounts</span></div>
+          <div class="brand-icon" aria-hidden="true">🚛</div>
+          <div><h2>Shinex Ledger</h2><span>Transport &amp; Accounts</span></div>
         </div>
         <button id="sidebar-close" class="sidebar-close-btn" type="button" aria-label="Close navigation">×</button>
       </div>
       <section class="sidebar-user-card" aria-label="Signed-in user">
-        <div class="user-avatar" aria-hidden="true">●</div>
-        <div class="user-details"><strong id="user-name">User</strong><span id="user-role">ROLE</span></div>
+        <div class="user-avatar" aria-hidden="true">👤</div>
+        <div class="user-details"><strong id="user-name">User</strong><span id="user-role" class="user-role-badge">ROLE</span></div>
       </section>
+      <div class="sidebar-status-row">
+        <div class="status-indicator"><span id="cloud-dot" class="status-dot offline"></span><span id="cloud-status">Not connected</span></div>
+        <button id="manual-sync-button" class="sidebar-sync-button" type="button" title="Sync database now">↻ Sync</button>
+      </div>
       <nav class="sidebar-menu" aria-label="Main navigation">
         <button class="nav-tab active" type="button" data-view="dashboard"><span aria-hidden="true">▦</span> Dashboard</button>
         <button class="nav-tab" type="button" data-view="ledger"><span aria-hidden="true">▤</span> Shipment Ledger</button>
         <button class="nav-tab" type="button" data-view="sheet"><span aria-hidden="true">▥</span> Live Excel Sheet</button>
         <button class="nav-tab" type="button" data-view="import"><span aria-hidden="true">⇧</span> Excel Import &amp; Export</button>
+        <button id="logout-button" class="sidebar-logout-btn" type="button"><span aria-hidden="true">↪</span> Log out</button>
       </nav>
-      <div class="sidebar-footer">
-        <div class="status-indicator"><span id="cloud-dot" class="status-dot offline"></span><span id="cloud-status">Not connected</span></div>
-        <button id="logout-button" class="sidebar-logout-btn" type="button">Log out</button>
-      </div>
     </aside>
     <button id="sidebar-scrim" class="sidebar-scrim" type="button" aria-label="Close navigation"></button>
     <main class="app-main-viewport">
       <header class="mobile-top-bar">
         <button id="sidebar-open" class="menu-button" type="button" aria-label="Open navigation">☰</button>
-        <strong>Broker Ledger</strong>
+        <span class="mobile-top-icon" aria-hidden="true">🚛</span>
+        <strong>Shinex Broker Ledger</strong>
         <span id="mobile-user-name"></span>
       </header>
       <div class="app-content">
@@ -79,7 +84,11 @@
         <div id="toast" class="toast" role="status" aria-live="polite"></div>
         <section id="view-container" aria-live="polite"></section>
       </div>
-      <footer class="app-footer"><span><strong>Broker Ledger</strong> · Independent brokerage records</span><span id="footer-sync">Google Sheets is the authoritative data store</span></footer>
+      <footer class="app-footer">
+        <span class="app-footer-brand">🚛 <strong>SHINEX LEDGER</strong> · Enterprise Freight &amp; Fleet Management System</span>
+        <span>© 2026 Shinex UQ Genetic Seeds Pvt. Ltd. · Developed by <strong>Shravan Kumar</strong> · All Rights Reserved</span>
+        <span id="footer-sync">Google Sheets is the authoritative data store</span>
+      </footer>
     </main>
   </div>
 
@@ -90,40 +99,58 @@
         <button id="close-dialog" class="icon-button" type="button" aria-label="Close form">×</button>
       </header>
       <div id="form-error" class="notice notice-error" role="alert" hidden></div>
-      <div class="form-grid">
-        <label>Transport name <span class="required">*</span><input name="transportName" maxlength="120" required></label>
-        <label>Shipment date <span class="required">*</span><input name="date" type="date" required></label>
-        <label>LR No <span class="required">*</span><input name="lrNo" maxlength="60" required></label>
-        <label>Truck No <span class="required">*</span><input name="truckNo" maxlength="40" required></label>
-        <label>From <span class="required">*</span><input name="from" maxlength="100" required></label>
-        <label>To <span class="required">*</span><input name="to" maxlength="100" required></label>
-        <label>Account No<input name="accountNo" maxlength="40" autocomplete="off"></label>
-        <label>IFSC<input name="ifscCode" maxlength="20" autocapitalize="characters"></label>
-        <label>Bank<input name="bank" maxlength="100"></label>
-        <label>ToPayStatus <span class="required">*</span>
-          <select name="toPayStatus" required>
-            <option value="" selected disabled>Choose a status</option>
-            <option value="TOBILLED">TOBILLED</option>
-            <option value="A/TO-PAY">A/TO-PAY</option>
-            <option value="F/TO-PAY">F/TO-PAY</option>
-          </select>
-        </label>
-        <label>FRIGHT (₹) <span class="required">*</span><input name="freight" inputmode="decimal" placeholder="e.g. 60,000" required></label>
-        <label>T/M (₹)<input name="tM" inputmode="decimal" placeholder="Optional"></label>
-        <label>ADVANCE (₹)<input name="advance" inputmode="decimal" placeholder="Optional"></label>
-        <label>ADVANCE2 (₹)<input name="advance2" inputmode="decimal" placeholder="Optional"></label>
-        <label>ADVANCE3 (₹)<input name="advance3" inputmode="decimal" placeholder="Optional"></label>
-        <label>POD received date<input name="podReceivedDate" type="date"></label>
-        <label>COD / To-Pay (₹ or note)<input name="codToPay" maxlength="80" placeholder="Amount or text placeholder"></label>
-        <label>Pending Amount: Tobilled (₹)<input name="pendingTobilled" readonly class="calculated-field"></label>
-        <label>Extra Amount (₹)<input name="extraAmount" inputmode="decimal" placeholder="Optional"></label>
-        <label>PM/PA Date<input name="pmPaDate" type="date"></label>
-        <label>P/M (₹)<input name="pM" inputmode="decimal" placeholder="Optional"></label>
-        <label>Pending Amount (₹)<input name="pendingAmount" readonly class="calculated-field"></label>
-        <label>POD Amount Status<input name="podAmountStatus" maxlength="100"></label>
-        <label class="form-span">Remarks<input name="remarks" maxlength="500"></label>
-      </div>
-      <div class="calculation-hint">Calculated fields update from the source amounts and status. COD / To-Pay text is preserved.</div>
+      <section class="form-section" aria-labelledby="shipment-info-title">
+        <h3 id="shipment-info-title" class="form-section-title"><span>📦 Shipment Information</span></h3>
+        <div class="form-grid">
+          <label>Transport name <span class="required">*</span><input name="transportName" maxlength="120" required></label>
+          <label>Shipment date <span class="required">*</span><input name="date" type="date" required></label>
+          <label>LR No <span class="required">*</span><input name="lrNo" maxlength="60" required></label>
+          <label>Truck No <span class="required">*</span><input name="truckNo" maxlength="40" required></label>
+          <label>From <span class="required">*</span><input name="from" maxlength="100" required></label>
+          <label>To <span class="required">*</span><input name="to" maxlength="100" required></label>
+        </div>
+      </section>
+      <section class="form-section" aria-labelledby="payment-info-title">
+        <h3 id="payment-info-title" class="form-section-title"><span>💰 Payment Details</span></h3>
+        <div class="form-grid">
+          <label class="form-span">ToPayStatus <span class="required">*</span>
+            <select name="toPayStatus" required>
+              <option value="" selected disabled>Choose a status</option>
+              <option value="TOBILLED">TOBILLED</option>
+              <option value="A/TO-PAY">A/TO-PAY</option>
+              <option value="F/TO-PAY">F/TO-PAY</option>
+            </select>
+          </label>
+          <label>FRIGHT (₹) <span class="required">*</span><input name="freight" inputmode="decimal" placeholder="e.g. 60,000" required></label>
+          <label>T/M (₹)<input name="tM" inputmode="decimal" placeholder="Optional"></label>
+          <label>ADVANCE (₹)<input name="advance" inputmode="decimal" placeholder="Optional"></label>
+          <label>ADVANCE2 (₹)<input name="advance2" inputmode="decimal" placeholder="Optional"></label>
+          <label>ADVANCE3 (₹)<input name="advance3" inputmode="decimal" placeholder="Optional"></label>
+          <label>COD / To-Pay (₹ or note)<input name="codToPay" maxlength="80" placeholder="Amount or text placeholder"></label>
+          <label>Extra Amount (₹)<input name="extraAmount" inputmode="decimal" placeholder="Optional"></label>
+          <label>PM/PA Date<input name="pmPaDate" type="date"></label>
+          <label>P/M (₹)<input name="pM" inputmode="decimal" placeholder="Optional"></label>
+        </div>
+      </section>
+      <section class="form-section" aria-labelledby="bank-pod-title">
+        <h3 id="bank-pod-title" class="form-section-title"><span>🏦 Bank &amp; POD Details</span></h3>
+        <div class="form-grid">
+          <label>Account No<input name="accountNo" maxlength="40" autocomplete="off"></label>
+          <label>IFSC<input name="ifscCode" maxlength="20" autocapitalize="characters"></label>
+          <label>Bank<input name="bank" maxlength="100"></label>
+          <label>POD received date<input name="podReceivedDate" type="date"></label>
+          <label>POD Amount Status<input name="podAmountStatus" maxlength="100"></label>
+          <label class="form-span">Remarks<input name="remarks" maxlength="500"></label>
+        </div>
+      </section>
+      <section class="form-section calculation-section" aria-labelledby="calculation-title">
+        <h3 id="calculation-title" class="form-section-title"><span>📊 Live Calculation Summary</span></h3>
+        <div class="calculation-results">
+          <label class="calculation-result calculation-result-billed">Pending Amount: Tobilled (₹)<input name="pendingTobilled" readonly class="calculated-field" aria-live="polite"></label>
+          <label class="calculation-result calculation-result-final">Pending Amount (₹)<input name="pendingAmount" readonly class="calculated-field" aria-live="polite"></label>
+        </div>
+        <div class="calculation-hint">Balances update from the source amounts and status. COD / To-Pay text placeholders are preserved.</div>
+      </section>
       <footer class="modal-actions">
         <button id="cancel-dialog" class="btn btn-secondary" type="button">Cancel</button>
         <button id="save-shipment" class="btn btn-primary" type="submit">Save Shipment</button>
