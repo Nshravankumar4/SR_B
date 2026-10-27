@@ -147,9 +147,11 @@ Assert-Test "20. Negative balance preservation (Freight 20,000 - Adv 25,000 -> -
 $calcJs = Get-Content -Raw "Broker-Ledger\js\calculations.js"
 $valJs = Get-Content -Raw "Broker-Ledger\js\validation.js"
 $appJs = Get-Content -Raw "Broker-Ledger\js\app.js"
+$codeGs = Get-Content -Raw "Broker-Ledger\backend\Code.gs"
 Assert-Test "21. POD Amount Status strictly evaluates to numeric zero, never substituting text DONE" `
     ($calcJs -match 'podAmountStatus = fromPaise\(' -and `
      $calcJs -match 'podAmountStatus: podAmountStatus' -and `
+     $codeGs -match 'podAmountStatus:\s*0' -and `
      !($appJs -match "podStatusInput\.value = 'DONE'"))
 
 Assert-Test "22. toDateInput parses slash dates and pads single-digit values" `

@@ -336,6 +336,9 @@ function brokerValidateAndCalculate_(source) {
   record.codToPay = calc.codToPay;
   record.pendingTobilled = calc.pendingTobilled;
   record.pendingAmount = calc.pendingAmount;
+  if (!record.podAmountStatus || String(record.podAmountStatus).trim() === '') {
+    record.podAmountStatus = String(calc.podAmountStatus !== undefined ? calc.podAmountStatus : '0');
+  }
   return record;
 }
 
@@ -356,7 +359,8 @@ function brokerCalculate_(record) {
     return {
       codToPay: record.codToPay === null || record.codToPay === undefined ? '' : record.codToPay,
       pendingTobilled: pendingTobilled / 100,
-      pendingAmount: (pendingTobilled + parsed.extraAmount - parsed.pM) / 100
+      pendingAmount: (pendingTobilled + parsed.extraAmount - parsed.pM) / 100,
+      podAmountStatus: 0
     };
   }
   if (status !== 'A/TO-PAY' && status !== 'F/TO-PAY') {
@@ -364,7 +368,7 @@ function brokerCalculate_(record) {
   }
   var codToPay = parsed.freight - parsed.tM - parsed.advance - parsed.advance2 - parsed.advance3;
   var pendingAmount = parsed.freight - parsed.tM - parsed.advance - codToPay;
-  return { codToPay: codToPay / 100, pendingTobilled: '', pendingAmount: pendingAmount / 100 };
+  return { codToPay: codToPay / 100, pendingTobilled: '', pendingAmount: pendingAmount / 100, podAmountStatus: 0 };
 }
 
 function brokerParseMoney_(value, allowEmpty) {
