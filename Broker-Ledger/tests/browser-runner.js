@@ -339,6 +339,19 @@
         equal(record.codToPay, 38500);
         equal(record.pendingAmount, 1500);
       });
+      check('validation accepts slash formatted calendar dates', function () {
+        const validSlash = {
+          transportName: 'Example Transport',
+          date: '27/10/2026',
+          lrNo: 'LR-101',
+          truckNo: 'AP00AA0000',
+          from: 'Origin',
+          to: 'Destination',
+          freight: '60,000',
+          toPayStatus: 'TOBILLED'
+        };
+        equal(window.BrokerValidation.validateShipment(validSlash).valid, true);
+      });
       renderResults();
     })
     .catch(function (error) {

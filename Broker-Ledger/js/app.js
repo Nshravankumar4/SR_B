@@ -68,9 +68,9 @@
     return text || '—';
   }
   function toDateInput(value) {
-    const text = String(value || '');
-    const dmy = text.match(/^(\d{2})-(\d{2})-(\d{4})$/);
-    if (dmy) return dmy[3] + '-' + dmy[2] + '-' + dmy[1];
+    const text = String(value || '').trim();
+    const dmy = text.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+    if (dmy) return dmy[3] + '-' + dmy[2].padStart(2, '0') + '-' + dmy[1].padStart(2, '0');
     return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : '';
   }
   function toast(message, type) {
@@ -1025,6 +1025,18 @@
       if (sForm.elements.to) {
         sForm.elements.to.addEventListener('input', function () {
           this.value = this.value.toUpperCase();
+        });
+      }
+      if (sForm.elements.podReceivedDate) {
+        sForm.elements.podReceivedDate.addEventListener('change', function () {
+          const podStatusInput = sForm.elements.podAmountStatus;
+          if (podStatusInput) {
+            if (this.value && (!podStatusInput.value.trim() || podStatusInput.value.trim().toUpperCase() === 'PENDING')) {
+              podStatusInput.value = 'DONE';
+            } else if (!this.value && podStatusInput.value.trim().toUpperCase() === 'DONE') {
+              podStatusInput.value = 'PENDING';
+            }
+          }
         });
       }
     }

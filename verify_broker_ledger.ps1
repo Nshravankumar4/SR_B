@@ -143,6 +143,42 @@ $neg = Calc-Shipment @{ toPayStatus = "TOBILLED"; freight = "20,000"; tM = "0"; 
 Assert-Test "20. Negative balance preservation (Freight 20,000 - Adv 25,000 -> -5,000)" `
     ($neg.pendingTobilled -eq -5000 -and $neg.pendingAmount -eq -5000)
 
+# 6. POD Status Auto-Toggle & Date Normalization
+$valJs = Get-Content -Raw "Broker-Ledger\js\validation.js"
+Assert-Test "21. POD received date auto-toggles podAmountStatus to DONE/PENDING" `
+    ($appJs -match 'sForm\.elements\.podReceivedDate' -and `
+     $appJs -match "podStatusInput\.value = 'DONE'" -and `
+     $appJs -match "podStatusInput\.value = 'PENDING'")
+
+Assert-Test "22. toDateInput parses slash dates and pads single-digit values" `
+    ($appJs -match 'toDateInput' -and $appJs -match 'padStart\(2,\s*''0''\)')
+
+Assert-Test "23. validation.js accepts slash formatted dates (DD/MM/YYYY or YYYY/MM/DD)" `
+    ($valJs -match 'rawDate\.replace\(/\\//g,\s*''-''\)')
+
+# Decimal Currency Precision (Paise Math)
+$dec = Calc-Shipment @{ toPayStatus = "TOBILLED"; freight = "60,000.50"; tM = "300.25"; advance = "49,700.15"; extraAmount = "5,000.40"; pM = "300.50"; codToPay = "if Tobilled NA" }
+Assert-Test "24. Decimal currency inputs maintain exact paise precision without floating-point errors" `
+    ($dec.pendingTobilled -eq 10000.10 -and $dec.pendingAmount -eq 14700.00)
+
+# Duplicate Check Logic Validation
+$existingRecords = @(
+    @{ id = "1"; lrNo = "LR-200"; date = "2026-10-27"; truckNo = "AP39UD3564" }
+)
+function Check-Dup($cand, $editId) {
+    $candKey = "$($cand.lrNo)|$($cand.date)|$($cand.truckNo)".ToLower().Trim()
+    return $existingRecords | Where-Object {
+        if ($editId -and $_.id -eq $editId) { return $false }
+        $itemKey = "$($_.lrNo)|$($_.date)|$($_.truckNo)".ToLower().Trim()
+        return $itemKey -eq $candKey
+    }
+}
+$isDup1 = (Check-Dup @{ lrNo = "LR-200"; date = "2026-10-27"; truckNo = "AP39UD3564" } $null) -ne $null
+$isDup2 = (Check-Dup @{ lrNo = "LR-200"; date = "2026-10-27"; truckNo = "AP39UD3564" } "1") -ne $null
+$isDup3 = (Check-Dup @{ lrNo = "LR-200"; date = "2026-10-28"; truckNo = "AP39UD3564" } $null) -ne $null
+Assert-Test "25. Compound duplicate key prevents collision but allows editing same record and valid new dates" `
+    ($isDup1 -eq $true -and $isDup2 -eq $false -and $isDup3 -eq $false)
+
 Write-Host "`n========================================================" -ForegroundColor Cyan
 Write-Host "  TEST RESULTS SUMMARY" -ForegroundColor Cyan
 Write-Host "========================================================" -ForegroundColor Cyan

@@ -22,7 +22,8 @@
         errors[field] = 'This value is too long.';
       }
     });
-    const date = String(item.date || '');
+    const rawDate = String(item.date || '').trim();
+    const date = rawDate.replace(/\//g, '-');
     if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date) && !/^\d{2}-\d{2}-\d{4}$/.test(date)) {
       errors.date = 'Enter a valid shipment date.';
     } else if (date) {
