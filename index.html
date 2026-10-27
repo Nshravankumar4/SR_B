@@ -19,17 +19,20 @@
   <section id="auth-view" class="auth-wrapper">
     <div class="auth-card">
       <header class="auth-header">
-        <div class="brand-mark" aria-hidden="true">SR</div>
-        <p class="eyebrow">TRANSPORT &amp; ACCOUNTS</p>
+        <div class="brand-mark" aria-hidden="true">B</div>
+        <p class="eyebrow">BROKERAGE &amp; ACCOUNTS</p>
         <h1>Broker Ledger</h1>
         <p>Sign in to manage shipment and settlement records.</p>
       </header>
       <div id="auth-message" class="notice notice-info" role="status" aria-live="polite"></div>
       <form id="login-form" novalidate>
-        <label for="login-username">Username</label>
+        <label for="login-username">Account username</label>
         <input id="login-username" name="username" autocomplete="username" required>
         <label for="login-password">Password</label>
-        <input id="login-password" name="password" type="password" autocomplete="current-password" required>
+        <div class="auth-password-control">
+          <input id="login-password" name="password" type="password" autocomplete="current-password" required>
+          <button id="toggle-password" type="button" aria-label="Show password" aria-pressed="false">Show</button>
+        </div>
         <button id="login-button" class="btn btn-primary btn-block" type="submit">Secure Login</button>
       </form>
       <p class="auth-footnote">Accounts are provisioned in the Broker Ledger Google Apps Script backend.</p>

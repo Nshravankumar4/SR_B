@@ -160,6 +160,7 @@
   }
   function renderDashboard() {
     const summary = numericTotals(state.records);
+    const userName = state.user && (state.user.name || state.user.username);
     const metrics = [
       ['Total shipments', String(summary.shipmentCount), 'All statuses'],
       ['Total FRIGHT', formatMoneyPaise(summary.freightPaise), 'All shipments'],
@@ -176,7 +177,15 @@
       return '<article class="status-card">' + statusBadge(status) + '<span>' +
         summary.statusCounts[status] + ' shipment' + (summary.statusCounts[status] === 1 ? '' : 's') + '</span></article>';
     }).join('');
-    return '<div class="metrics-grid">' + cards + '</div>' +
+    return '<section class="dashboard-hero-banner"><div class="banner-welcome">' +
+      '<h2>Hello, ' + escapeHtml(userName || 'there') + '</h2>' +
+      '<p>Shipment activity, broker settlements, and live financial reconciliation.</p></div>' +
+      '<div class="banner-quick-actions">' +
+      (state.preview ? '' : '<button class="btn btn-primary" type="button" data-action="add-shipment">＋ Add Shipment</button>') +
+      '<button class="btn btn-secondary" type="button" data-action="go-sheet">View Excel Sheet</button>' +
+      '<button class="btn btn-secondary" type="button" data-action="export">Export Excel</button>' +
+      '</div></section>' +
+      '<div class="metrics-grid">' + cards + '</div>' +
       '<section class="panel"><h2 class="section-title">Shipment status</h2><div class="status-grid">' + statuses + '</div></section>' +
       '<section class="panel"><div class="toolbar"><div><h2 class="section-title">Recent shipments</h2><p class="toolbar-help">Calculated balances update from the source values.</p></div>' +
       '<button class="btn btn-secondary" type="button" data-action="go-ledger">Open Shipment Ledger</button></div>' +
@@ -696,9 +705,20 @@
   function toggleSidebar(open) {
     byId('sidebar').classList.toggle('open', open);
     byId('sidebar-scrim').classList.toggle('visible', open);
+    document.body.classList.toggle('sidebar-open', open);
+  }
+  function togglePasswordVisibility() {
+    const input = byId('login-password');
+    const button = byId('toggle-password');
+    const visible = input.type === 'password';
+    input.type = visible ? 'text' : 'password';
+    button.textContent = visible ? 'Hide' : 'Show';
+    button.setAttribute('aria-label', visible ? 'Hide password' : 'Show password');
+    button.setAttribute('aria-pressed', String(visible));
   }
   function bindEvents() {
     byId('login-form').addEventListener('submit', handleLogin);
+    byId('toggle-password').addEventListener('click', togglePasswordVisibility);
     byId('logout-button').addEventListener('click', logout);
     byId('add-shipment-top').addEventListener('click', function () { openShipmentDialog('edit'); });
     byId('close-dialog').addEventListener('click', closeShipmentDialog);
@@ -744,6 +764,8 @@
     const button = event.target.closest('[data-action]');
     if (!button) return;
     const action = button.dataset.action;
+    if (action === 'add-shipment') openShipmentDialog('edit');
+    if (action === 'go-sheet') { state.view = 'sheet'; render(); }
     if (action === 'go-ledger') { state.view = 'ledger'; render(); }
     if (action === 'sort') {
       const field = button.dataset.field;

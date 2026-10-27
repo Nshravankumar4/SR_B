@@ -2,7 +2,7 @@
 
 - No default accounts, passwords, API tokens, or sample production data are included.
 - Usernames/passwords are configured in the private Apps Script Script Properties, not frontend files. Script editors can access those properties and must be trusted.
-- Passwords are checked on the server. Login attempts are limited globally, and tokens are generated and validated by the server with an eight-hour expiration.
+- Passwords are checked on the server. Failed logins are rate-limited with fixed account buckets; session tokens are generated and validated by the server with an eight-hour expiration.
 - Every shipment read/write except sign-in requires a valid server session. Employees cannot delete records or create Drive backups; those operations are enforced again on the backend.
 - The Apps Script endpoint is public at the HTTP layer when deployed for external browser access. Use strong, unique credentials and the narrowest Apps Script access scope your organization can support. Never expose a user's password in source or query strings.
 - Use HTTPS for the hosted frontend. Treat account numbers and IFSC values as sensitive and restrict spreadsheet and Drive access.

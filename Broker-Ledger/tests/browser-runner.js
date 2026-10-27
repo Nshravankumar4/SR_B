@@ -104,8 +104,8 @@
       return response.text();
     })
     .then(function (source) {
-      const backend = new Function(source + '\nreturn { login: brokerLogin_ };')();
-      check('backend login cleans expired sessions and limits attempts per username', function () {
+      const backend = new Function(source + '\nreturn { login: brokerLogin_, rowNumberForId: brokerRowNumberForId_ };')();
+      check('backend login cleans expired sessions and keeps rate-limit properties bounded', function () {
         const values = {
           BROKER_SPREADSHEET_ID: 'test-spreadsheet',
           ADMIN_USERNAME: 'admin',
@@ -126,12 +126,6 @@
         const originalUtilities = window.Utilities;
         window.PropertiesService = { getScriptProperties: function () { return properties; } };
         window.Utilities = {
-          DigestAlgorithm: { SHA_256: 'SHA_256' },
-          Charset: { UTF_8: 'UTF-8' },
-          computeDigest: function (algorithm, value) {
-            return [Array.from(value).reduce(function (sum, character) { return sum + character.charCodeAt(0); }, 0)];
-          },
-          base64EncodeWebSafe: function (bytes) { return String(bytes[0]); },
           getUuid: function () { return '123e4567-e89b-12d3-a456-426614174000'; }
         };
         try {
@@ -145,12 +139,32 @@
           equal(Boolean(values.BROKER_SESSION_expired), false);
           equal(Boolean(values.BROKER_SESSION_corrupt), false);
           equal(Boolean(values.BROKER_SESSION_active), true);
+          equal(Boolean(values.BROKER_LOGIN_FAIL_COUNT_UNKNOWN), true);
+          equal(Object.keys(values).filter(function (key) { return key.indexOf('BROKER_LOGIN_FAIL_COUNT_') === 0; }).length, 1);
         } finally {
           if (originalPropertiesService === undefined) delete window.PropertiesService;
           else window.PropertiesService = originalPropertiesService;
           if (originalUtilities === undefined) delete window.Utilities;
           else window.Utilities = originalUtilities;
         }
+      });
+      check('backend update and delete row lookup uses stable IDs across blank rows', function () {
+        const sheet = {
+          getLastRow: function () { return 5; },
+          getRange: function (firstRow, firstColumn, rowCount, columnCount) {
+            equal(firstRow, 2);
+            equal(firstColumn, 1);
+            equal(columnCount, 1);
+            return {
+              getValues: function () {
+                equal(rowCount, 4);
+                return [['record-a'], [''], ['record-b'], ['record-c']];
+              }
+            };
+          }
+        };
+        equal(backend.rowNumberForId(sheet, 'record-b'), 4);
+        equal(backend.rowNumberForId(sheet, 'missing-record'), null);
       });
       renderResults();
     })

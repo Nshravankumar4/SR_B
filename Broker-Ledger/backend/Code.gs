@@ -157,16 +157,17 @@ function brokerHandle_(request) {
     var id = String(request.id || '').trim();
     if (!id) throw new Error('A shipment ID is required for editing.');
     var records = brokerReadRecords_(sheet);
-    var index = records.findIndex(function(item) { return item.id === id; });
-    if (index < 0) throw new Error('Shipment no longer exists. Reload the ledger and try again.');
+    var existingRecord = records.find(function(item) { return item.id === id; });
+    var rowNumber = brokerRowNumberForId_(sheet, id);
+    if (!existingRecord || !rowNumber) throw new Error('Shipment no longer exists. Reload the ledger and try again.');
     var updated = brokerValidateAndCalculate_(request.record);
     brokerAssertUnique_(updated, records, id);
     updated.id = id;
-    updated.slNo = records[index].slNo;
-    updated.createdAt = records[index].createdAt;
-    updated.createdBy = records[index].createdBy;
+    updated.slNo = existingRecord.slNo;
+    updated.createdAt = existingRecord.createdAt;
+    updated.createdBy = existingRecord.createdBy;
     updated.updatedAt = new Date().toISOString();
-    brokerWriteAt_(sheet, index + 2, updated);
+    brokerWriteAt_(sheet, rowNumber, updated);
     var updateAuditWarning = brokerAudit_(spreadsheet, session, 'UPDATE', id, updated.lrNo);
     brokerBumpVersion_();
     return { success: true, record: updated, warning: updateAuditWarning, version: brokerVersion_() };
@@ -175,10 +176,11 @@ function brokerHandle_(request) {
     if (session.role !== 'Admin') throw new Error('Only an administrator can delete shipments.');
     var deleteId = String(request.id || '').trim();
     var deleteRecords = brokerReadRecords_(sheet);
-    var deleteIndex = deleteRecords.findIndex(function(item) { return item.id === deleteId; });
-    if (deleteIndex < 0) throw new Error('Shipment not found. Reload and try again.');
-    sheet.deleteRow(deleteIndex + 2);
-    var deleteAuditWarning = brokerAudit_(spreadsheet, session, 'DELETE', deleteId, deleteRecords[deleteIndex].lrNo);
+    var deleteRecord = deleteRecords.find(function(item) { return item.id === deleteId; });
+    var deleteRowNumber = brokerRowNumberForId_(sheet, deleteId);
+    if (!deleteRecord || !deleteRowNumber) throw new Error('Shipment not found. Reload and try again.');
+    sheet.deleteRow(deleteRowNumber);
+    var deleteAuditWarning = brokerAudit_(spreadsheet, session, 'DELETE', deleteId, deleteRecord.lrNo);
     brokerBumpVersion_();
     return { success: true, warning: deleteAuditWarning, version: brokerVersion_() };
   }
@@ -207,17 +209,18 @@ function brokerLogin_(request) {
   if (!username || username.length > 120 || !password || password.length > 256) return { success: false, message: 'Enter a valid username and password.' };
   var adminName = String(properties.getProperty('ADMIN_USERNAME') || '');
   var employeeName = String(properties.getProperty('EMPLOYEE_USERNAME') || '');
+  var account = null;
+  if (brokerConstantTimeEqual_(username.toLowerCase(), adminName.toLowerCase())) account = 'ADMIN';
+  if (brokerConstantTimeEqual_(username.toLowerCase(), employeeName.toLowerCase())) account = 'EMPLOYEE';
   var role = null;
   if (brokerConstantTimeEqual_(username.toLowerCase(), adminName.toLowerCase()) &&
       brokerConstantTimeEqual_(password, String(properties.getProperty('ADMIN_PASSWORD') || ''))) role = 'Admin';
   if (brokerConstantTimeEqual_(username.toLowerCase(), employeeName.toLowerCase()) &&
       brokerConstantTimeEqual_(password, String(properties.getProperty('EMPLOYEE_PASSWORD') || ''))) role = 'Employee';
 
-  var loginKey = Utilities.base64EncodeWebSafe(
-    Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, username.toLowerCase(), Utilities.Charset.UTF_8)
-  ).replace(/=+$/, '');
-  var attemptsKey = 'BROKER_LOGIN_FAIL_COUNT_' + loginKey;
-  var blockedKey = 'BROKER_LOGIN_BLOCK_UNTIL_' + loginKey;
+  var accountKey = account || 'UNKNOWN';
+  var attemptsKey = 'BROKER_LOGIN_FAIL_COUNT_' + accountKey;
+  var blockedKey = 'BROKER_LOGIN_BLOCK_UNTIL_' + accountKey;
   var attempts = Number(properties.getProperty(attemptsKey) || 0);
   var blockedUntil = Number(properties.getProperty(blockedKey) || 0);
   if (blockedUntil > Date.now()) return { success: false, message: 'Too many failed sign-in attempts. Wait a few minutes and try again.' };
@@ -241,6 +244,20 @@ function brokerLogin_(request) {
     expiresAt: Date.now() + 8 * 60 * 60 * 1000
   }));
   return { success: true, username: role === 'Admin' ? adminName : employeeName, name: role === 'Admin' ? 'Administrator' : employeeName, role: role, token: token };
+}
+
+function brokerRowNumberForId_(sheet, id) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return null;
+  var ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  var matchingRows = [];
+  ids.forEach(function(row, index) {
+    if (String(row[0] || '') === id) matchingRows.push(index + 2);
+  });
+  if (matchingRows.length > 1) {
+    throw new Error('Duplicate shipment IDs were found in the sheet. No record was changed. Contact the administrator.');
+  }
+  return matchingRows.length ? matchingRows[0] : null;
 }
 
 function brokerSession_(token) {
