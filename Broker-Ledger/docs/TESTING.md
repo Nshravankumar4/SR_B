@@ -2,7 +2,7 @@
 
 ## Automated calculations and validation
 
-The Node test suite covers fixture formulas, summary totals, negative and decimal precision, empty optional values, formatted amounts, invalid text, COD placeholders, status changes, and stale derived values:
+The Node test suite covers workbook-derived To-Pay COD and pending formulas, summary totals, negative and decimal precision, empty optional values, formatted amounts, invalid text, TOBILLED placeholders, status normalization, status changes, and stale derived values:
 
 ```powershell
 node --test tests\calculations.test.js tests\validation.test.js tests\summaries.test.js

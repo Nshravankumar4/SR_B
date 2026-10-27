@@ -24,6 +24,14 @@ test('text COD placeholders are excluded while numeric strings are counted', fun
   assert.equal(summary.codToPayPaise, 8200000);
 });
 
+test('summary recalculates workbook COD formulas instead of trusting stored values', function () {
+  const rows = fixtures.map(function (record) { return Object.assign({}, record); });
+  rows[2].codToPay = '999999';
+  rows[3].codToPay = 'stale';
+  const summary = calc.summarize(rows);
+  assert.equal(summary.codToPayPaise, 8200000);
+});
+
 test('non-shipment rows and unsupported statuses are not counted', function () {
   const summary = calc.summarize(fixtures.concat([
     { slNo: 'SL NO', toPayStatus: 'ToPayStatus', freight: 123 },

@@ -23,6 +23,24 @@
     equal(c.calculateShipment(fixture[2]).pendingAmount, 0);
     equal(c.calculateShipment(fixture[3]).pendingAmount, 0);
   });
+  check('workbook COD formulas recalculate A/TO-PAY and F/TO-PAY values', function () {
+    equal(c.calculateShipment(Object.assign({}, fixture[2], { codToPay: '999999' })).codToPay, 40000);
+    equal(c.calculateShipment(Object.assign({}, fixture[3], { codToPay: 'stale' })).codToPay, 42000);
+  });
+  check('To-Pay pending formula preserves ADVANCE2 and ADVANCE3 balance', function () {
+    const result = c.calculateShipment(Object.assign({}, fixture[2], { advance2: '1,000', advance3: '500' }));
+    equal(result.codToPay, 38500);
+    equal(result.pendingAmount, 1500);
+  });
+  check('status case and whitespace normalize to canonical values', function () {
+    equal(c.normalizeStatus(' a / to-pay '), 'A/TO-PAY');
+    equal(c.calculateShipment(Object.assign({}, fixture[2], { toPayStatus: ' a / to-pay ' })).codToPay, 40000);
+  });
+  check('invalid amount does not produce calculated zero values', function () {
+    const result = c.calculateShipment(Object.assign({}, fixture[2], { tM: 'not an amount' }));
+    equal(result.codToPay, null);
+    equal(result.pendingAmount, null);
+  });
   check('source changes and status changes recalculate without mutating inputs', function () {
     const record = Object.assign({}, fixture[0], { freight: '62,000' });
     const billed = c.calculateShipment(record);
@@ -81,6 +99,12 @@
     equal(summary.pendingAmountPaise, 2450000);
     equal(summary.codToPayPaise, 8200000);
   });
+  check('summary recalculates COD values rather than trusting stale To-Pay cells', function () {
+    const rows = fixture.map(function (record) { return Object.assign({}, record); });
+    rows[2].codToPay = '999999';
+    rows[3].codToPay = 'stale';
+    equal(c.summarize(rows).codToPayPaise, 8200000);
+  });
   function renderResults() {
     const list = document.getElementById('test-results');
     list.textContent = '';
@@ -104,7 +128,7 @@
       return response.text();
     })
     .then(function (source) {
-      const backend = new Function(source + '\nreturn { login: brokerLogin_, rowNumberForId: brokerRowNumberForId_, recordVersionMatches: brokerRecordVersionMatches_ };')();
+      const backend = new Function(source + '\nreturn { login: brokerLogin_, rowNumberForId: brokerRowNumberForId_, recordVersionMatches: brokerRecordVersionMatches_, validateAndCalculate: brokerValidateAndCalculate_ };')();
       check('backend login cleans expired sessions and keeps rate-limit properties bounded', function () {
         const values = {
           BROKER_SPREADSHEET_ID: 'test-spreadsheet',
@@ -170,6 +194,30 @@
         equal(backend.recordVersionMatches('2026-10-28T10:00:00.000Z', { updatedAt: '2026-10-28T10:00:00.000Z' }), true);
         equal(backend.recordVersionMatches('2026-10-28T09:00:00.000Z', { updatedAt: '2026-10-28T10:00:00.000Z' }), false);
         equal(backend.recordVersionMatches('', { updatedAt: '2026-10-28T10:00:00.000Z' }), false);
+      });
+      check('backend derives COD from workbook source fields and canonicalizes status', function () {
+        const record = backend.validateAndCalculate({
+          transportName: 'Example Transport',
+          date: '2026-10-27',
+          lrNo: 'LR-100',
+          truckNo: 'AP00AA0000',
+          from: 'Origin',
+          to: 'Destination',
+          freight: '90,000',
+          tM: '200',
+          advance: '49,800',
+          advance2: '',
+          advance3: '',
+          extraAmount: '',
+          pM: '',
+          advance2: '1,000',
+          advance3: '500',
+          codToPay: '999999',
+          toPayStatus: ' a / to-pay '
+        });
+        equal(record.toPayStatus, 'A/TO-PAY');
+        equal(record.codToPay, 38500);
+        equal(record.pendingAmount, 1500);
       });
       renderResults();
     })

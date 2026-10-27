@@ -43,6 +43,10 @@ test('only the three specified statuses are accepted', function () {
   }
 });
 
+test('status case and whitespace normalize for validation', function () {
+  assert.equal(validation.validateShipment(Object.assign({}, valid, { toPayStatus: ' a / to-pay ' })).valid, true);
+});
+
 test('dates must be real calendar dates', function () {
   assert.equal(validation.validateShipment(Object.assign({}, valid, { date: '2026-02-30' })).valid, false);
 });

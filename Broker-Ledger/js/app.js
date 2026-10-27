@@ -11,6 +11,7 @@
     editingId: null,
     formMode: 'edit',
     editingUpdatedAt: '',
+    codToPayNote: 'if Tobilled NA',
     pendingImport: null,
     busy: false,
     syncChecking: false,
@@ -337,7 +338,9 @@
 
   function withDerivedValues(record) {
     const result = Object.assign({}, record);
+    result.toPayStatus = CALC.normalizeStatus(result.toPayStatus);
     const calculation = CALC.calculateShipment(result);
+    result.codToPay = calculation.codToPay;
     result.pendingTobilled = calculation.pendingTobilled;
     result.pendingAmount = calculation.pendingAmount;
     return result;
@@ -393,15 +396,32 @@
     const value = formData.get(field);
     record[field] = value === null ? '' : String(value).trim();
     });
+    record.toPayStatus = CALC.normalizeStatus(record.toPayStatus);
     const calculated = CALC.calculateShipment(record);
+    record.codToPay = calculated.codToPay;
     record.pendingTobilled = calculated.pendingTobilled;
     record.pendingAmount = calculated.pendingAmount;
     return record;
   }
   function updateFormCalculations() {
     if (!byId('shipment-form')) return;
+    const form = byId('shipment-form');
+    const codInput = form.elements.codToPay;
+    const status = CALC.normalizeStatus(form.elements.toPayStatus.value);
+    if (status === 'TOBILLED') {
+      if (codInput.readOnly) codInput.value = state.codToPayNote;
+      codInput.readOnly = false;
+      codInput.classList.remove('calculated-field');
+      state.codToPayNote = codInput.value;
+    } else {
+      codInput.readOnly = true;
+      codInput.classList.add('calculated-field');
+    }
     const record = formRecord();
     const computed = CALC.calculateShipment(record);
+    codInput.value = status === 'TOBILLED'
+      ? state.codToPayNote
+      : (computed.codToPay === null ? '' : CALC.fromPaise(Math.round(computed.codToPay * 100)).toLocaleString('en-IN'));
     byId('shipment-form').elements.pendingTobilled.value =
     computed.pendingTobilled === null ? '' : CALC.fromPaise(Math.round(computed.pendingTobilled * 100)).toLocaleString('en-IN');
     byId('shipment-form').elements.pendingAmount.value =
@@ -410,11 +430,17 @@
   function setFormValues(record) {
     const form = byId('shipment-form');
     form.reset();
+    const recordStatus = record ? CALC.normalizeStatus(record.toPayStatus) : 'TOBILLED';
+    state.codToPayNote = recordStatus === 'TOBILLED'
+      ? String(record && record.codToPay !== null && record.codToPay !== undefined ? record.codToPay : '')
+      : 'if Tobilled NA';
+    if (!record) state.codToPayNote = 'if Tobilled NA';
     FIELD_ORDER.forEach(function (field) {
     if (field === 'slNo') return;
     const input = form.elements[field];
     if (!input) return;
     let value = record && record[field] !== null && record[field] !== undefined ? record[field] : '';
+    if (field === 'toPayStatus') value = CALC.normalizeStatus(value);
     if (DATE_FIELDS.has(field)) value = toDateInput(value);
     if (field === 'pendingTobilled' || field === 'pendingAmount') {
       value = value === '' || value === null ? '' : displayMoney(value).replace(/^₹/, '');
@@ -619,8 +645,10 @@
     if (field === 'codToPay') record[field] = typeof value === 'number' ? value : String(value).trim();
     else record[field] = String(value).trim();
     });
+    record.toPayStatus = CALC.normalizeStatus(record.toPayStatus);
     const validation = VALIDATION.validateShipment(record);
     if (!validation.valid) throw new Error(errorList(validation.errors));
+    record.codToPay = validation.calculated.codToPay;
     record.pendingTobilled = validation.calculated.pendingTobilled;
     record.pendingAmount = validation.calculated.pendingAmount;
     return record;

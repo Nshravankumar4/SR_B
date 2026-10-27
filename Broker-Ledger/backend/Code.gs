@@ -298,6 +298,8 @@ function brokerValidateAndCalculate_(source) {
     if (field === 'slNo' || field === 'pendingTobilled' || field === 'pendingAmount') return;
     if (field === 'date' || field === 'podReceivedDate' || field === 'pmPaDate') {
       record[field] = field === 'date' && !value ? '' : brokerNormalizeDate_(value, field);
+    } else if (field === 'toPayStatus') {
+      record[field] = brokerNormalizeStatus_(value);
     } else if (field === 'codToPay') {
       if (typeof value !== 'string' && typeof value !== 'number') throw new Error('COD / To-Pay must be an amount or text.');
       record[field] = String(value).trim();
@@ -319,9 +321,14 @@ function brokerValidateAndCalculate_(source) {
   });
   if (BROKER_STATUSES.indexOf(record.toPayStatus) < 0) throw new Error('ToPayStatus must be TOBILLED, A/TO-PAY, or F/TO-PAY.');
   var calc = brokerCalculate_(record);
+  record.codToPay = calc.codToPay;
   record.pendingTobilled = calc.pendingTobilled;
   record.pendingAmount = calc.pendingAmount;
   return record;
+}
+
+function brokerNormalizeStatus_(value) {
+  return String(value || '').trim().toUpperCase().replace(/\s+/g, '');
 }
 
 function brokerCalculate_(record) {
@@ -331,17 +338,21 @@ function brokerCalculate_(record) {
     if (!result.ok) throw new Error(field + ': ' + result.error);
     parsed[field] = result.paise;
   });
-  if (record.toPayStatus === 'TOBILLED') {
+  var status = brokerNormalizeStatus_(record.toPayStatus);
+  if (status === 'TOBILLED') {
     var pendingTobilled = parsed.freight - parsed.tM - parsed.advance - parsed.advance2 - parsed.advance3;
     return {
+      codToPay: record.codToPay === null || record.codToPay === undefined ? '' : record.codToPay,
       pendingTobilled: pendingTobilled / 100,
       pendingAmount: (pendingTobilled + parsed.extraAmount - parsed.pM) / 100
     };
   }
-  if (record.toPayStatus !== 'A/TO-PAY' && record.toPayStatus !== 'F/TO-PAY') {
+  if (status !== 'A/TO-PAY' && status !== 'F/TO-PAY') {
     throw new Error('Unsupported ToPayStatus in the shipment data.');
   }
-  return { pendingTobilled: '', pendingAmount: 0 };
+  var codToPay = parsed.freight - parsed.tM - parsed.advance - parsed.advance2 - parsed.advance3;
+  var pendingAmount = parsed.freight - parsed.tM - parsed.advance - codToPay;
+  return { codToPay: codToPay / 100, pendingTobilled: '', pendingAmount: pendingAmount / 100 };
 }
 
 function brokerParseMoney_(value, allowEmpty) {
@@ -397,6 +408,8 @@ function brokerReadRecords_(sheet) {
     catch (error) { throw new Error('A shipment row is corrupt. No records were changed. Contact the administrator.'); }
     if (!record || typeof record !== 'object' || !record.id) return;
     var calculated = brokerCalculate_(record);
+    record.toPayStatus = brokerNormalizeStatus_(record.toPayStatus);
+    record.codToPay = calculated.codToPay;
     record.pendingTobilled = calculated.pendingTobilled;
     record.pendingAmount = calculated.pendingAmount;
     result.push(record);

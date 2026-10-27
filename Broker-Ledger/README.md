@@ -13,7 +13,7 @@ The application starts with an empty ledger. The example shipments in `tests/fix
 - Exact status choices: `TOBILLED`, `A/TO-PAY`, `F/TO-PAY`.
 - Shared calculation/validation logic on the browser and server.
 - Separate `Pending Amount: Tobilled` and final `Pending Amount`.
-- Preserves COD / To-Pay text placeholders and excludes them from numeric totals.
+- Calculates COD / To-Pay for A/TO-PAY and F/TO-PAY from workbook source fields; preserves TOBILLED text notes.
 - Excel/CSV import with preview and duplicate checks; XLSX export with a totals row.
 - Google Sheets as the backend's authoritative store; Apps Script locking, sessions, role checks, audit entries, and administrator backups.
 - No SR_T production URL, spreadsheet, record, password, or token is used.
@@ -82,10 +82,11 @@ Money is parsed into integer paise for calculation. Comma-grouped Indian and Wes
 ```text
 Pending Amount: Tobilled = FRIGHT - T/M - ADVANCE - ADVANCE2 - ADVANCE3
 Pending Amount (TOBILLED) = Pending Amount: Tobilled + Extra Amount - P/M
-Pending Amount (A/TO-PAY or F/TO-PAY) = 0
+COD / To-Pay (A/TO-PAY or F/TO-PAY) = FRIGHT - T/M - ADVANCE - ADVANCE2 - ADVANCE3
+Pending Amount (A/TO-PAY or F/TO-PAY) = FRIGHT - T/M - ADVANCE - COD / To-Pay
 ```
 
-COD / To-Pay is preserved as entered. Numeric values are summarized; notes such as `if Tobilled NA` remain text and are excluded. See [docs/CALCULATIONS.md](docs/CALCULATIONS.md) for formulas, test cases, and edge cases.
+For To-Pay statuses the final pending amount reduces to ADVANCE2 + ADVANCE3; it is zero for the current workbook rows because both are zero. TOBILLED notes such as `if Tobilled NA` remain text and are excluded from numeric totals. See [docs/CALCULATIONS.md](docs/CALCULATIONS.md) for the workbook cell formulas, tests, and edge cases.
 
 ## Data and field definitions
 

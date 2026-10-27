@@ -21,7 +21,7 @@ The UI, import/export headers, and API use the same underlying keys:
 | `tM` | T/M | T/M amount (source) |
 | `advance`, `advance2`, `advance3` | ADVANCE, ADVANCE2, ADVANCE3 | Source advance amounts |
 | `podReceivedDate` | POD RECD Date | POD date or blank |
-| `codToPay` | Cash on Delivery (COD) :A/Topay&Ftopay | Numeric COD/To-Pay amount or preserved text |
+| `codToPay` | Cash on Delivery (COD) :A/Topay&Ftopay | Formula-derived for A/TO-PAY and F/TO-PAY; preserved note for TOBILLED |
 | `pendingTobilled` | Pending Amount: Tobilled | Derived pre-extra/pre-P/M amount for TOBILLED |
 | `extraAmount` | Extra Amount | Source adjustment |
 | `pmPaDate` | PM/PA Date | P/M or P/A date |
@@ -31,6 +31,6 @@ The UI, import/export headers, and API use the same underlying keys:
 | `remarks` | REMARKS / NOTE | Notes |
 | `toPayStatus` | ToPayStatus | One of the three allowed statuses |
 
-`Pending Amount: Tobilled` and `Pending Amount` are independent fields. The former is freight less T/M and all three advances; the latter also applies Extra Amount and P/M for TOBILLED shipments.
+`Pending Amount: Tobilled` and `Pending Amount` are derived fields. For TOBILLED, they follow the workbook formulas `FRIGHT - T/M - ADVANCE - ADVANCE2 - ADVANCE3` and `Pending Amount: Tobilled + Extra Amount - P/M`. For A/TO-PAY and F/TO-PAY, COD is `FRIGHT - T/M - ADVANCE - ADVANCE2 - ADVANCE3` and final Pending Amount is `FRIGHT - T/M - ADVANCE - COD`, equivalent to `ADVANCE2 + ADVANCE3`.
 
 Records have a stable backend-generated `id`, and audit metadata (`createdAt`, `updatedAt`, `createdBy`) is maintained outside the user-editable form.

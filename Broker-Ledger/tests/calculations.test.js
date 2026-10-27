@@ -20,6 +20,32 @@ test('A/TO-PAY and F/TO-PAY pending amounts are zero', function () {
   assert.equal(calc.calculateShipment(fixtures[2]).pendingTobilled, null);
 });
 
+test('A/TO-PAY and F/TO-PAY COD follows the workbook formula, not stale stored values', function () {
+  const aToPay = Object.assign({}, fixtures[2], { codToPay: '999999' });
+  const fToPay = Object.assign({}, fixtures[3], { codToPay: 'stale' });
+  assert.equal(calc.calculateShipment(aToPay).codToPay, 40000);
+  assert.equal(calc.calculateShipment(fToPay).codToPay, 42000);
+});
+
+test('To-Pay pending balance follows the workbook formula when ADVANCE2 or ADVANCE3 is nonzero', function () {
+  const record = Object.assign({}, fixtures[2], { advance2: '1,000', advance3: '500' });
+  const result = calc.calculateShipment(record);
+  assert.equal(result.codToPay, 38500);
+  assert.equal(result.pendingAmount, 1500);
+});
+
+test('status comparisons accept case and whitespace while returning canonical values', function () {
+  assert.equal(calc.normalizeStatus('  a / to-pay '), 'A/TO-PAY');
+  assert.equal(calc.calculateShipment(Object.assign({}, fixtures[2], { toPayStatus: ' a / to-pay ' })).codToPay, 40000);
+});
+
+test('invalid monetary inputs do not produce success-shaped calculated zeros', function () {
+  const result = calc.calculateShipment(Object.assign({}, fixtures[2], { tM: 'not an amount' }));
+  assert.equal(result.codToPay, null);
+  assert.equal(result.pendingAmount, null);
+  assert.ok(result.errors.tM);
+});
+
 test('parser accepts common currency formats and exact paise', function () {
   assert.equal(calc.parseMoney(60000).paise, 6000000);
   assert.equal(calc.parseMoney('60,000').paise, 6000000);

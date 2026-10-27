@@ -6,6 +6,8 @@
 
 ## Derived fields
 
+The rules below were verified against the `Broker Ledger` sheet in `Final Sheet Broker.xlsx` (28 columns). For the sample rows in that workbook, the source formulas are `V2 = K2-N2-O2-Q2-S2`, `Z2 = V2+W2-Y2`, `U8 = K8-N8-O8-Q8-S8`, `Z8 = K8-N8-O8-U8`, `U12 = K12-N12-O12-Q12-S12`, and `Z12 = K12-N12-O12-U12`. Here K is FRIGHT, M is ToPayStatus, N is T/M, O/Q/S are ADVANCE/ADVANCE2/ADVANCE3, U is COD / To-Pay, V is Pending Amount: Tobilled, W is Extra Amount, Y is P/M, and Z is Pending Amount.
+
 For `TOBILLED`:
 
 ```text
@@ -13,13 +15,13 @@ Pending Amount: Tobilled = FRIGHT - T/M - ADVANCE - ADVANCE2 - ADVANCE3
 Pending Amount = Pending Amount: Tobilled + Extra Amount - P/M
 ```
 
-For `A/TO-PAY` and `F/TO-PAY`, final Pending Amount is zero. Pending Amount: Tobilled is left blank for those statuses; their freight, advances, and COD / To-Pay input are not changed by calculation.
+For `A/TO-PAY` and `F/TO-PAY`, COD / To-Pay is calculated as `FRIGHT - T/M - ADVANCE - ADVANCE2 - ADVANCE3`. Final Pending Amount is `FRIGHT - T/M - ADVANCE - COD`; this evaluates to `ADVANCE2 + ADVANCE3`, and is zero for the current workbook rows because both fields are zero. Pending Amount: Tobilled is left blank for those statuses.
 
 No automatic floor is applied. A negative result remains negative.
 
 ## COD / To-Pay
 
-The entered source value is preserved. A numeric amount contributes to the total; a textual note such as `if Tobilled NA` is not numeric and does not contribute. The application does not infer a COD value.
+For A/TO-PAY and F/TO-PAY, the server and client independently calculate COD / To-Pay from source amounts; a stale imported COD value is not trusted. For TOBILLED, the workbook contains explanatory text such as `if Tobilled NA`, which is preserved as a user-entered note. Numeric COD values contribute to the total; text placeholders do not.
 
 ## Summary
 
@@ -41,3 +43,5 @@ The four examples in `tests/fixtures/reference-shipments.json` assert:
 | Pending Amount: Tobilled | ₹20,000 |
 | Final Pending Amount | ₹24,500 |
 | Numeric COD / To-Pay | ₹82,000 |
+
+The fixture's A/TO-PAY and F/TO-PAY COD expectations are ₹40,000 and ₹42,000, respectively, independently computed from their workbook source amounts. A separate regression uses nonzero ADVANCE2 / ADVANCE3 to verify the corresponding To-Pay pending formula.

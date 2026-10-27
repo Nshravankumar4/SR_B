@@ -32,7 +32,8 @@
         errors.date = 'Enter a real calendar date.';
       }
     }
-    if (!root.BrokerCalculations.STATUS.includes(item.toPayStatus)) {
+    const status = root.BrokerCalculations.normalizeStatus(item.toPayStatus);
+    if (!root.BrokerCalculations.STATUS.includes(status)) {
       errors.toPayStatus = 'Choose a supported status.';
     }
     const calculated = root.BrokerCalculations.calculateShipment(item);
