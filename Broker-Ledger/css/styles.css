@@ -989,8 +989,18 @@ button:active:not(:disabled), .btn:active:not(:disabled), .nav-tab:active, .user
 /* Payment and Issue Overview (4 Action Cards) */
 .action-cards-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.85rem;
+}
+.badge-remarks {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+.badge-notes {
+  background: #ede9fe;
+  color: #5b21b6;
+  border: 1px solid #ddd6fe;
 }
 .control-action-card {
   display: flex;

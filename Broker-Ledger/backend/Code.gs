@@ -5,12 +5,12 @@ var BROKER_FIELDS = [
   'slNo', 'transportName', 'date', 'lrNo', 'truckNo', 'from', 'to', 'accountNo',
   'ifscCode', 'bank', 'freight', 'tM', 'advance', 'date1', 'advance2', 'date2', 'advance3', 'date3',
   'unloadingDate', 'podReceivedDate', 'balanceDate', 'codToPay', 'pendingTobilled', 'extraAmount', 'pmPaDate',
-  'pM', 'pendingAmount', 'podAmountStatus', 'remarks', 'toPayStatus'
+  'pM', 'pendingAmount', 'podAmountStatus', 'remarks', 'note', 'toPayStatus'
 ];
 var BROKER_TEXT_LIMITS = {
   transportName: 120, lrNo: 60, truckNo: 40, from: 100, to: 100,
   accountNo: 40, ifscCode: 20, bank: 100, codToPay: 80,
-  podAmountStatus: 100, remarks: 500
+  podAmountStatus: 100, remarks: 500, note: 500
 };
 var BROKER_STATUSES = ['TOBILLED', 'A/TO-PAY', 'F/TO-PAY'];
 var BROKER_OPTIONAL_MONEY = ['tM', 'advance', 'advance2', 'advance3', 'extraAmount', 'pM'];

@@ -5,7 +5,7 @@
   const TEXT_LIMITS = Object.freeze({
     transportName: 120, lrNo: 60, truckNo: 40, from: 100, to: 100,
     accountNo: 40, ifscCode: 20, bank: 100, codToPay: 80,
-    podAmountStatus: 100, remarks: 500
+    podAmountStatus: 100, remarks: 500, note: 500
   });
 
   function validateShipment(record) {

@@ -96,6 +96,23 @@ Assert-Check "19. styles.css includes sheet-filter-banner and sheet-clear-filter
 Assert-Check "20. styles.css includes responsive breakpoints for 900px and 640px" `
     ($stylesCss -match '@media \(max-width:\s*900px\)' -and $stylesCss -match '@media \(max-width:\s*640px\)')
 
+# 7. Remarks & Notes Division + F/TO-PAY POD Missing Fix
+$html = Get-Content -Raw "index.html"
+Assert-Check "21. isShipmentPodMissing strictly excludes F/TO-PAY shipments" `
+    ($appJs -match "toPayStatus.*===\s*'F/TO-PAY'.*return false")
+
+Assert-Check "22. Payment and Issue Overview includes dedicated remarks and notes action cards" `
+    ($appJs -match "category:\s*'remarks'" -and $appJs -match "category:\s*'notes'")
+
+Assert-Check "23. Table columns divide REMARKS / NOTE into distinct REMARKS and NOTE fields" `
+    ($appJs -match "'remarks',\s*'note',\s*'toPayStatus'" -and $appJs -match "remarks:\s*'REMARKS',\s*note:\s*'NOTE'")
+
+Assert-Check "24. Shipment dialog includes separate inputs for remarks and note" `
+    ($html -match 'name="remarks"' -and $html -match 'name="note"')
+
+Assert-Check "25. getFilteredSheetRecords supports category filtering for remarks and notes" `
+    ($appJs -match "filter\.value === 'remarks'" -and $appJs -match "filter\.value === 'notes'")
+
 Write-Host "`n========================================================" -ForegroundColor Cyan
 Write-Host "  CONTROL CENTRE RESULTS: $passed Passed, $failed Failed" -ForegroundColor Cyan
 Write-Host "========================================================`n" -ForegroundColor Cyan

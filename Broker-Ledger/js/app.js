@@ -29,7 +29,7 @@
     'slNo', 'transportName', 'date', 'lrNo', 'truckNo', 'from', 'to', 'accountNo',
     'ifscCode', 'bank', 'freight', 'tM', 'advance', 'date1', 'advance2', 'date2', 'advance3', 'date3',
     'unloadingDate', 'podReceivedDate', 'balanceDate', 'codToPay', 'pendingTobilled', 'extraAmount', 'pmPaDate',
-    'pM', 'pendingAmount', 'podAmountStatus', 'remarks', 'toPayStatus'
+    'pM', 'pendingAmount', 'podAmountStatus', 'remarks', 'note', 'toPayStatus'
   ];
   const LABELS = {
     slNo: 'SL NO', transportName: 'TRSP NAME', date: 'DATE', lrNo: 'LR NO', truckNo: 'TRUCK NO',
@@ -40,7 +40,7 @@
     codToPay: 'Cash on Delivery (COD) :A/Topay&Ftopay',
     pendingTobilled: 'Pending Amount: Tobilled', extraAmount: 'Extra Amount',
     pmPaDate: 'PM/PA Date', pM: 'P/M', pendingAmount: 'Pending Amount',
-    podAmountStatus: 'POD Amount Status', remarks: 'REMARKS / NOTE', toPayStatus: 'ToPayStatus'
+    podAmountStatus: 'POD Amount Status', remarks: 'REMARKS', note: 'NOTE', toPayStatus: 'ToPayStatus'
   };
   const MONEY_FIELDS = new Set([
     'freight', 'tM', 'advance', 'advance2', 'advance3',
@@ -220,6 +220,7 @@
   }
 
   function isShipmentPodMissing(rec) {
+    if (String(rec.toPayStatus || '').trim().toUpperCase() === 'F/TO-PAY') return false;
     const pod = String(rec.podReceivedDate || '').trim().toUpperCase();
     return !pod || pod === 'PENDING' || pod === 'NO' || pod === '0';
   }
@@ -273,6 +274,8 @@
     let overdueTotalPaise = 0;
     let podMissingCount = 0;
     let openIssuesCount = 0;
+    let remarksCount = 0;
+    let notesCount = 0;
     const pendingShipmentRows = [];
 
     (state.records || []).forEach(function (rec) {
@@ -283,6 +286,10 @@
       const overdue = isShipmentOverdue(rec);
       const podMissing = isShipmentPodMissing(rec);
       const openIssue = isShipmentOpenIssue(rec);
+      const hasRemarks = Boolean(rec.remarks && String(rec.remarks).trim());
+      const hasNotes = Boolean((rec.note && String(rec.note).trim()) || (rec.toPayStatus === 'TOBILLED' && rec.codToPay && !CALC.parseMoney(rec.codToPay, { allowEmpty: true }).ok));
+      if (hasRemarks) remarksCount++;
+      if (hasNotes) notesCount++;
 
       if (hasPending) {
         pendingCount++;
@@ -352,6 +359,28 @@
         amount: openIssuesCount + (openIssuesCount === 1 ? ' item' : ' items'),
         note: 'Missing LR/Truck/Transporter or discrepancy',
         filterLabel: 'Open Issues / Unresolved Records'
+      },
+      {
+        category: 'remarks',
+        title: 'Remarks',
+        badgeText: 'ðŸ“Œ Delivery Remarks',
+        badgeClass: 'badge-remarks',
+        subtitle: 'Damages, claims & delivery issues',
+        count: remarksCount,
+        amount: remarksCount + (remarksCount === 1 ? ' shipment' : ' shipments'),
+        note: 'Shipments with delivery remarks',
+        filterLabel: 'Shipments with Remarks'
+      },
+      {
+        category: 'notes',
+        title: 'Notes',
+        badgeText: 'ðŸ“ Operational Notes',
+        badgeClass: 'badge-notes',
+        subtitle: 'Instructions & operational notes',
+        count: notesCount,
+        amount: notesCount + (notesCount === 1 ? ' shipment' : ' shipments'),
+        note: 'Shipments with notes / instructions',
+        filterLabel: 'Shipments with Notes'
       }
     ];
 
@@ -525,6 +554,18 @@
           return isShipmentOpenIssue(r);
         });
       }
+      if (filter.value === 'remarks') {
+        return records.filter(function (r) {
+          return Boolean(r.remarks && String(r.remarks).trim());
+        });
+      }
+      if (filter.value === 'notes') {
+        return records.filter(function (r) {
+          if (r.note && String(r.note).trim()) return true;
+          if (r.toPayStatus === 'TOBILLED' && r.codToPay && !CALC.parseMoney(r.codToPay, { allowEmpty: true }).ok) return true;
+          return false;
+        });
+      }
     }
     return records;
   }
@@ -612,7 +653,7 @@
       const statusMatches = filter.status === 'ALL' || record.toPayStatus === filter.status;
       if (!statusMatches) return false;
       if (!query) return true;
-      return ['transportName', 'lrNo', 'truckNo', 'from', 'to', 'accountNo', 'ifscCode', 'bank', 'remarks']
+      return ['transportName', 'lrNo', 'truckNo', 'from', 'to', 'accountNo', 'ifscCode', 'bank', 'remarks', 'note']
         .some(function (key) { return String(record[key] || '').toLowerCase().includes(query); });
     }).sort(compareRecords);
   }
@@ -1092,7 +1133,7 @@
           if (field === 'slNo') width = 8;
           else if (field === 'transportName') width = 24;
           else if (field === 'truckNo') width = 16;
-          else if (field === 'remarks') width = 30;
+          else if (field === 'remarks' || field === 'note') width = 30;
           else if (MONEY_FIELDS.has(field) || field === 'codToPay') width = 16;
           else if (DATE_FIELDS.has(field)) width = 14;
           return { header: label, key: field, width: width };
@@ -1552,7 +1593,7 @@
   function clearBankPodDetails() {
     const form = byId('shipment-form');
     if (!form) return;
-    ['accountNo', 'ifscCode', 'bank', 'podReceivedDate', 'balanceDate', 'podAmountStatus', 'remarks'].forEach(function (name) {
+    ['accountNo', 'ifscCode', 'bank', 'podReceivedDate', 'balanceDate', 'podAmountStatus', 'remarks', 'note'].forEach(function (name) {
       if (form.elements[name]) form.elements[name].value = '';
     });
     toast('Bank & POD details have been reset.', 'info');
