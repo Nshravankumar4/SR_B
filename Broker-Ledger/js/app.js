@@ -916,6 +916,7 @@
     const saveBtn = byId('save-shipment');
     const clearAllBtn = byId('clear-all-dialog');
     const fillPendingBtn = byId('btn-fill-pending');
+    const clearPaymentBtn = byId('clear-payment-details');
     if (saveBtn) {
       saveBtn.hidden = isView;
       saveBtn.disabled = false;
@@ -923,6 +924,7 @@
     }
     if (clearAllBtn) clearAllBtn.hidden = isView;
     if (fillPendingBtn) fillPendingBtn.hidden = isView;
+    if (clearPaymentBtn) clearPaymentBtn.hidden = isView;
     byId('cancel-dialog').textContent = isView ? 'Close' : 'Cancel';
     byId('shipment-dialog-title').textContent = isView ? 'Shipment Details' : (existing ? 'Edit Shipment' : 'Add Shipment');
     byId('form-error').hidden = true;
@@ -1503,6 +1505,25 @@
       button.setAttribute('aria-pressed', String(isPassword));
     }
   }
+  function clearPaymentDetails() {
+    const form = byId('shipment-form');
+    if (!form) return;
+    const paymentFields = [
+      'freight', 'tM', 'unloadingDate', 'codToPay', 'extraAmount',
+      'pmPaDate', 'pM', 'advance', 'date1', 'advance2', 'date2', 'advance3', 'date3'
+    ];
+    paymentFields.forEach(function (name) {
+      if (form.elements[name]) {
+        form.elements[name].value = '';
+      }
+    });
+    if (form.elements.toPayStatus) {
+      form.elements.toPayStatus.value = 'TOBILLED';
+    }
+    updateFormCalculations();
+    toast('Payment details have been reset.', 'info');
+  }
+
   function bindEvents() {
     byId('login-form').addEventListener('submit', handleLogin);
     byId('toggle-password').addEventListener('click', togglePasswordVisibility);
@@ -1537,22 +1558,20 @@
     byId('shipment-form').addEventListener('input', updateFormCalculations);
     byId('shipment-form').addEventListener('change', updateFormCalculations);
     byId('shipment-form').addEventListener('submit', saveShipment);
-    byId('shipment-form').addEventListener('click', function (e) {
-      const clearBtn = e.target.closest('.field-clear-btn');
-      if (!clearBtn) return;
-      e.preventDefault();
-      e.stopPropagation();
-      if (state.formMode === 'view') return;
-      const wrap = clearBtn.closest('.input-clear-wrap') || clearBtn.parentElement;
-      const input = wrap ? wrap.querySelector('input, select, textarea') : null;
-      if (input && !input.readOnly && !input.disabled) {
-        input.value = '';
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-        input.focus();
-        updateFormCalculations();
-      }
-    });
+    const clearPaymentBtn = byId('clear-payment-details');
+    if (clearPaymentBtn) {
+      clearPaymentBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        if (state.formMode === 'view') return;
+        const isEditing = state.formMode === 'edit';
+        const msg = isEditing
+          ? 'Reset payment details for this shipment? Any unsaved changes to payment fields will be cleared.'
+          : 'Are you sure you want to clear payment details?';
+        const confirmed = window.confirm(msg);
+        if (!confirmed) return;
+        clearPaymentDetails();
+      });
+    }
 
     const clearAllBtn = byId('clear-all-dialog');
     if (clearAllBtn) {

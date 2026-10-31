@@ -136,45 +136,30 @@
         <h3 id="shipment-info-title" class="form-section-title"><span>📦 Shipment Information</span></h3>
         <div class="form-grid">
           <label>Transport name <span class="required">*</span>
-            <div class="input-clear-wrap">
-              <input name="transportName" list="transport-suggestions" maxlength="120" placeholder="Select or type transporter" required>
-              <button type="button" class="field-clear-btn" tabindex="-1" title="Clear Transport Name" aria-label="Clear Transport Name">×</button>
-            </div>
+            <input name="transportName" list="transport-suggestions" maxlength="120" placeholder="Select or type transporter" required>
           </label>
           <label>Shipment date <span class="required">*</span>
-            <div class="input-clear-wrap">
-              <input name="date" type="date" required>
-              <button type="button" class="field-clear-btn" tabindex="-1" title="Clear Shipment Date" aria-label="Clear Shipment Date">×</button>
-            </div>
+            <input name="date" type="date" required>
           </label>
           <label>LR No <span class="required">*</span>
-            <div class="input-clear-wrap">
-              <input name="lrNo" maxlength="60" placeholder="e.g. 207" required>
-              <button type="button" class="field-clear-btn" tabindex="-1" title="Clear LR No" aria-label="Clear LR No">×</button>
-            </div>
+            <input name="lrNo" maxlength="60" placeholder="e.g. 207" required>
           </label>
           <label>Truck No <span class="required">*</span>
-            <div class="input-clear-wrap">
-              <input name="truckNo" list="truck-suggestions" maxlength="40" placeholder="e.g. AP39UD3564" style="text-transform: uppercase;" required>
-              <button type="button" class="field-clear-btn" tabindex="-1" title="Clear Truck No" aria-label="Clear Truck No">×</button>
-            </div>
+            <input name="truckNo" list="truck-suggestions" maxlength="40" placeholder="e.g. AP39UD3564" style="text-transform: uppercase;" required>
           </label>
           <label>From <span class="required">*</span>
-            <div class="input-clear-wrap">
-              <input name="from" list="from-suggestions" maxlength="100" placeholder="Origin city" style="text-transform: uppercase;" required>
-              <button type="button" class="field-clear-btn" tabindex="-1" title="Clear From" aria-label="Clear From">×</button>
-            </div>
+            <input name="from" list="from-suggestions" maxlength="100" placeholder="Origin city" style="text-transform: uppercase;" required>
           </label>
           <label>To <span class="required">*</span>
-            <div class="input-clear-wrap">
-              <input name="to" list="to-suggestions" maxlength="100" placeholder="Destination city" style="text-transform: uppercase;" required>
-              <button type="button" class="field-clear-btn" tabindex="-1" title="Clear To" aria-label="Clear To">×</button>
-            </div>
+            <input name="to" list="to-suggestions" maxlength="100" placeholder="Destination city" style="text-transform: uppercase;" required>
           </label>
         </div>
       </section>
       <section class="form-section" aria-labelledby="payment-info-title">
-        <h3 id="payment-info-title" class="form-section-title"><span>💰 Payment Details</span></h3>
+        <div class="form-section-header">
+          <h3 id="payment-info-title" class="form-section-title"><span>💰 Payment Details</span></h3>
+          <button id="clear-payment-details" class="btn btn-secondary btn-sm btn-clear-payment" type="button" title="Clear payment-related fields only">Clear Payment Details</button>
+        </div>
         <div class="form-grid">
           <label class="form-span">ToPayStatus <span class="required">*</span>
             <select name="toPayStatus" required>
@@ -185,112 +170,78 @@
             </select>
           </label>
           <label>FRIGHT (₹) <span class="required">*</span>
-            <div class="input-clear-wrap">
-              <input name="freight" inputmode="decimal" placeholder="e.g. 60,000" required>
-              <button type="button" class="field-clear-btn" tabindex="-1" title="Clear Freight" aria-label="Clear Freight">×</button>
-            </div>
+            <input name="freight" inputmode="decimal" placeholder="e.g. 60,000" required>
           </label>
           <label>T/M (₹)
-            <div class="input-clear-wrap">
-              <input name="tM" inputmode="decimal" placeholder="Optional">
-              <button type="button" class="field-clear-btn" tabindex="-1" title="Clear T/M" aria-label="Clear T/M">×</button>
-            </div>
+            <input name="tM" inputmode="decimal" placeholder="Optional">
           </label>
           <label>Unloading Date
-            <div class="input-clear-wrap">
-              <input name="unloadingDate" type="date">
-              <button type="button" class="field-clear-btn" tabindex="-1" title="Clear Unloading Date" aria-label="Clear Unloading Date">×</button>
-            </div>
+            <input name="unloadingDate" type="date">
           </label>
           <label>COD / To-Pay (₹ or note)
-            <div class="input-clear-wrap">
-              <input name="codToPay" maxlength="80" placeholder="Amount or text placeholder" aria-describedby="cod-help">
-              <button type="button" class="field-clear-btn" tabindex="-1" title="Clear COD / To-Pay" aria-label="Clear COD / To-Pay">×</button>
-            </div>
+            <input name="codToPay" maxlength="80" placeholder="Amount or text placeholder" aria-describedby="cod-help">
             <small id="cod-help" class="field-help">For A/TO-PAY and F/TO-PAY this is calculated as FRIGHT − T/M − advances. TOBILLED notes are preserved.</small>
           </label>
           <label>Extra Amount (₹)
-            <div class="input-clear-wrap">
-              <input name="extraAmount" inputmode="decimal" placeholder="Optional">
-              <button type="button" class="field-clear-btn" tabindex="-1" title="Clear Extra Amount" aria-label="Clear Extra Amount">×</button>
-            </div>
+            <input name="extraAmount" inputmode="decimal" placeholder="Optional">
           </label>
           <label>PM/PA Date
-            <div class="input-clear-wrap">
-              <input name="pmPaDate" type="date">
-              <button type="button" class="field-clear-btn" tabindex="-1" title="Clear PM/PA Date" aria-label="Clear PM/PA Date">×</button>
-            </div>
+            <input name="pmPaDate" type="date">
           </label>
           <label>Payment Mamul / P/M (₹)
-            <div class="input-clear-wrap">
-              <input name="pM" inputmode="decimal" placeholder="Optional">
-              <button type="button" class="field-clear-btn" tabindex="-1" title="Clear Payment Mamul" aria-label="Clear Payment Mamul">×</button>
-            </div>
+            <input name="pM" inputmode="decimal" placeholder="Optional">
           </label>
         </div>
 
-        <!-- 3 Visually Separate Advance Payment Cards -->
-        <div class="advance-cards-container">
-          <div class="advance-card">
-            <div class="advance-card-header">
-              <span class="advance-card-badge">1</span>
-              <h4>Advance Card 1</h4>
-            </div>
-            <div class="advance-card-fields">
-              <label>Advance 1 (₹)
-                <div class="input-clear-wrap">
-                  <input name="advance" inputmode="decimal" placeholder="Optional">
-                  <button type="button" class="field-clear-btn" tabindex="-1" title="Clear Advance 1" aria-label="Clear Advance 1">×</button>
-                </div>
-              </label>
-              <label>1st Advance Given Date
-                <div class="input-clear-wrap">
+        <!-- Advance Payments: 3 Consistent Rows (Amount Left, Date Right) -->
+        <div class="advance-payments-section">
+          <div class="advance-section-heading">
+            <h4>Advance Payments</h4>
+          </div>
+          <div class="advance-rows-wrap">
+            <div class="advance-row-card">
+              <div class="advance-row-label">
+                <span class="advance-pill">1</span>
+                <strong>Advance 1</strong>
+              </div>
+              <div class="advance-row-inputs">
+                <label>Advance Amount (₹)
+                  <input name="advance" inputmode="decimal" placeholder="Enter amount">
+                </label>
+                <label>1st Advance Given Date
                   <input name="date1" type="date">
-                  <button type="button" class="field-clear-btn" tabindex="-1" title="Clear 1st Advance Date" aria-label="Clear 1st Advance Date">×</button>
-                </div>
-              </label>
+                </label>
+              </div>
             </div>
-          </div>
 
-          <div class="advance-card">
-            <div class="advance-card-header">
-              <span class="advance-card-badge">2</span>
-              <h4>Advance Card 2</h4>
-            </div>
-            <div class="advance-card-fields">
-              <label>Advance 2 (₹)
-                <div class="input-clear-wrap">
-                  <input name="advance2" inputmode="decimal" placeholder="Optional">
-                  <button type="button" class="field-clear-btn" tabindex="-1" title="Clear Advance 2" aria-label="Clear Advance 2">×</button>
-                </div>
-              </label>
-              <label>2nd Advance Given Date
-                <div class="input-clear-wrap">
+            <div class="advance-row-card">
+              <div class="advance-row-label">
+                <span class="advance-pill">2</span>
+                <strong>Advance 2</strong>
+              </div>
+              <div class="advance-row-inputs">
+                <label>Advance Amount (₹)
+                  <input name="advance2" inputmode="decimal" placeholder="Enter amount">
+                </label>
+                <label>2nd Advance Given Date
                   <input name="date2" type="date">
-                  <button type="button" class="field-clear-btn" tabindex="-1" title="Clear 2nd Advance Date" aria-label="Clear 2nd Advance Date">×</button>
-                </div>
-              </label>
+                </label>
+              </div>
             </div>
-          </div>
 
-          <div class="advance-card">
-            <div class="advance-card-header">
-              <span class="advance-card-badge">3</span>
-              <h4>Advance Card 3</h4>
-            </div>
-            <div class="advance-card-fields">
-              <label>Advance 3 (₹)
-                <div class="input-clear-wrap">
-                  <input name="advance3" inputmode="decimal" placeholder="Optional">
-                  <button type="button" class="field-clear-btn" tabindex="-1" title="Clear Advance 3" aria-label="Clear Advance 3">×</button>
-                </div>
-              </label>
-              <label>3rd Advance Given Date
-                <div class="input-clear-wrap">
+            <div class="advance-row-card">
+              <div class="advance-row-label">
+                <span class="advance-pill">3</span>
+                <strong>Advance 3</strong>
+              </div>
+              <div class="advance-row-inputs">
+                <label>Advance Amount (₹)
+                  <input name="advance3" inputmode="decimal" placeholder="Enter amount">
+                </label>
+                <label>3rd Advance Given Date
                   <input name="date3" type="date">
-                  <button type="button" class="field-clear-btn" tabindex="-1" title="Clear 3rd Advance Date" aria-label="Clear 3rd Advance Date">×</button>
-                </div>
-              </label>
+                </label>
+              </div>
             </div>
           </div>
         </div>
@@ -299,46 +250,25 @@
         <h3 id="bank-pod-title" class="form-section-title"><span>🏦 Bank &amp; POD Details</span></h3>
         <div class="form-grid">
           <label>Account No
-            <div class="input-clear-wrap">
-              <input name="accountNo" list="account-suggestions" maxlength="40" autocomplete="off" placeholder="Bank account number">
-              <button type="button" class="field-clear-btn" tabindex="-1" title="Clear Account No" aria-label="Clear Account No">×</button>
-            </div>
+            <input name="accountNo" list="account-suggestions" maxlength="40" autocomplete="off" placeholder="Bank account number">
           </label>
           <label>IFSC
-            <div class="input-clear-wrap">
-              <input name="ifscCode" list="ifsc-suggestions" maxlength="20" autocapitalize="characters" placeholder="e.g. SBIN0010659" style="text-transform: uppercase;">
-              <button type="button" class="field-clear-btn" tabindex="-1" title="Clear IFSC" aria-label="Clear IFSC">×</button>
-            </div>
+            <input name="ifscCode" list="ifsc-suggestions" maxlength="20" autocapitalize="characters" placeholder="e.g. SBIN0010659" style="text-transform: uppercase;">
           </label>
           <label>Bank
-            <div class="input-clear-wrap">
-              <input name="bank" list="bank-suggestions" maxlength="100" placeholder="Bank name / payment mode">
-              <button type="button" class="field-clear-btn" tabindex="-1" title="Clear Bank" aria-label="Clear Bank">×</button>
-            </div>
+            <input name="bank" list="bank-suggestions" maxlength="100" placeholder="Bank name / payment mode">
           </label>
           <label>POD received date
-            <div class="input-clear-wrap">
-              <input name="podReceivedDate" type="date">
-              <button type="button" class="field-clear-btn" tabindex="-1" title="Clear POD received date" aria-label="Clear POD received date">×</button>
-            </div>
+            <input name="podReceivedDate" type="date">
           </label>
           <label>Balance Date
-            <div class="input-clear-wrap">
-              <input name="balanceDate" type="date">
-              <button type="button" class="field-clear-btn" tabindex="-1" title="Clear Balance Date" aria-label="Clear Balance Date">×</button>
-            </div>
+            <input name="balanceDate" type="date">
           </label>
           <label>POD Balance Amount / Status
-            <div class="input-clear-wrap">
-              <input name="podAmountStatus" maxlength="100" placeholder="Status or note">
-              <button type="button" class="field-clear-btn" tabindex="-1" title="Clear POD Balance Amount" aria-label="Clear POD Balance Amount">×</button>
-            </div>
+            <input name="podAmountStatus" maxlength="100" placeholder="Status or note">
           </label>
           <label class="form-span">Remarks
-            <div class="input-clear-wrap">
-              <input name="remarks" maxlength="500" placeholder="Optional notes">
-              <button type="button" class="field-clear-btn" tabindex="-1" title="Clear Remarks" aria-label="Clear Remarks">×</button>
-            </div>
+            <input name="remarks" maxlength="500" placeholder="Optional notes">
           </label>
         </div>
       </section>
