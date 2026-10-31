@@ -8,14 +8,17 @@ The application starts with an empty ledger. The example shipments in `tests/fix
 
 ## Features
 
-- Responsive sign-in, navigation, dashboard, searchable shipment ledger, and spreadsheet-style view.
+- Responsive sign-in with fast sub-second authentication, account quick-switch (Admin / Rudra), and password visibility toggle.
 - Add, view, edit, and role-authorized delete operations.
+- Four separate, independent date fields: `1st Advance Given Date`, `2nd Advance Given Date`, `3rd Advance Given Date`, and `Unloading Date` (never combined with 1st advance date), plus `Balance Date`.
 - Exact status choices: `TOBILLED`, `A/TO-PAY`, `F/TO-PAY`.
 - Shared calculation/validation logic on the browser and server.
 - Separate `Pending Amount: Tobilled` and final `Pending Amount`.
 - Calculates COD / To-Pay for A/TO-PAY and F/TO-PAY from workbook source fields; preserves TOBILLED text notes.
-- Excel/CSV import with preview and duplicate checks; XLSX export with a totals row.
-- Google Sheets as the backend's authoritative store; Apps Script locking, sessions, role checks, audit entries, and administrator backups.
+- Excel/CSV import with preview and duplicate checks; styled ExcelJS export visually matching application theme (custom colored headers, alternating rows, total summary row, frozen panes).
+- Live Excel Sheet full-ledger view with real-time dynamic column totals.
+- Dashboard with Total Ledger Closing outstanding metric and Transporter Pending Balance Payments panel.
+- Google Sheets as the backend's authoritative store; Apps Script locking, non-blocking authentication, sessions, role checks, audit entries, and administrator backups.
 - No SR_T production URL, spreadsheet, record, password, or token is used.
 
 ## Project layout

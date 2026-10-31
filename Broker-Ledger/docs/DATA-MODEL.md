@@ -19,8 +19,15 @@ The UI, import/export headers, and API use the same underlying keys:
 | `accountNo`, `ifscCode`, `bank` | ACCOUNT NO, IFSC CODE, PAYMENT MADE | Payment account details |
 | `freight` | FRIGHT | Freight amount (source) |
 | `tM` | T/M | T/M amount (source) |
-| `advance`, `advance2`, `advance3` | ADVANCE, ADVANCE2, ADVANCE3 | Source advance amounts |
-| `podReceivedDate` | POD RECD Date | POD date or blank |
+| `advance` | ADVANCE | First advance amount |
+| `date1` | 1ST ADV DATE | 1st Advance given date |
+| `advance2` | ADVANCE2 | Second advance amount |
+| `date2` | 2ND ADV DATE | 2nd Advance given date |
+| `advance3` | ADVANCE3 | Third advance amount |
+| `date3` | 3RD ADV DATE | 3rd Advance given date |
+| `unloadingDate` | UNLOADING DATE | Independent unloading date (not combined with 1st advance date) |
+| `podReceivedDate` | POD RECD Date | POD received date |
+| `balanceDate` | BALANCE DATE | Balance payment date |
 | `codToPay` | Cash on Delivery (COD) :A/Topay&Ftopay | Formula-derived for A/TO-PAY and F/TO-PAY; preserved note for TOBILLED |
 | `pendingTobilled` | Pending Amount: Tobilled | Derived pre-extra/pre-P/M amount for TOBILLED |
 | `extraAmount` | Extra Amount | Source adjustment |

@@ -12,11 +12,12 @@
 
 ## Data flow
 
-1. A user signs in; the backend verifies the account and returns a short-lived server-issued session token.
+1. A user signs in; the backend verifies credentials against Script Properties and returns a server-issued session token without waiting on the spreadsheet lock. The browser immediately transitions to the application dashboard and loads the full ledger asynchronously in the background.
 2. Every read/write request includes the token. The backend resolves the token and enforces the role for protected operations.
-3. The server validates source fields and recalculates both derived amounts before writing.
-4. Browser views, the dashboard, spreadsheet view, and Excel export calculate derived values through the same shared rules from source fields.
+3. The server validates source fields (including independent dates for advances, unloading, and balance payments) and recalculates both derived amounts before writing.
+4. Browser views, the dashboard, live spreadsheet view, and ExcelJS exports calculate derived values through the same shared rules from source fields.
 5. On a visible signed-in page, an 8-second poll checks the lightweight backend data version without taking the spreadsheet lock. The browser reloads the full authoritative dataset only after the version changes; returning to the tab and manual refresh also check for updates. A failed check is shown as offline/stale rather than a confirmed current sync.
 6. Updates include the record's `updatedAt` value captured when editing began. The backend rejects an update if another user saved a newer version, so stale forms cannot silently overwrite it.
+7. Excel downloads use ExcelJS to format the spreadsheet with exact application styling: colored status and calculation header blocks, thin slate borders, alternating row fills, custom number formats, frozen header panes, and double-underlined summary totals.
 
 The application is not connected to the reference project's backend or spreadsheet. No sample shipment data is seeded at setup.

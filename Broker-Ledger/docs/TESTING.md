@@ -1,12 +1,36 @@
 # Testing
 
-## Automated calculations and validation
+## Automated test suites
 
-The Node test suite covers workbook-derived To-Pay COD and pending formulas, summary totals, negative and decimal precision, empty optional values, formatted amounts, invalid text, TOBILLED placeholders, status normalization, status changes, and stale derived values:
+The project includes 3 automated test suites (60 total checks) executable in PowerShell:
 
 ```powershell
-node --test tests\calculations.test.js tests\validation.test.js tests\summaries.test.js
+powershell -ExecutionPolicy Bypass -Command "& '.\verify_broker_ledger.ps1'; & '.\run_behavioral_tests.ps1'; & '.\Broker-Ledger\tests\verify_dates_and_login.ps1'"
 ```
+
+1. **`verify_broker_ledger.ps1` (25 checks)**:
+   - Form datalist bindings and autocomplete.
+   - Non-destructive bank autofill.
+   - Status preservation across TOBILLED, A/TO-PAY, and F/TO-PAY.
+   - Compound duplicate key collision prevention (`LR No + Date + Truck No`).
+   - Double-click submission prevention.
+   - Exact mathematical formula verification against workbook test rows.
+   - Numeric 0 POD status verification (never substituting text 'DONE').
+   - Decimal paise precision and negative balance preservation.
+
+2. **`run_behavioral_tests.ps1` (17 checks)**:
+   - Emulates browser UI state transitions, datalist loading, modal initialization, non-destructive editing, live calculations, duplicate prevention, and view/edit permissions.
+
+3. **`Broker-Ledger/tests/verify_dates_and_login.ps1` (18 checks)**:
+   - Independent 1st, 2nd, 3rd Advance Given Dates and independent Unloading Date.
+   - Dedicated Balance Date.
+   - 3 Advance Cards grouping (amounts + dates).
+   - Individual field clear buttons (×).
+   - Live Calculation Summary with `⚡ Fill Pending Amount` button.
+   - Clear All button (`#clear-all-dialog`) with confirmation.
+   - Dynamic button labels: `Add & Submit Shipment` and `Update Shipment`.
+   - Sub-second non-blocking login.
+   - Password visibility toggle with click/pointer handling.
 
 ## Browser checks
 

@@ -21,20 +21,23 @@
     version: 0,
     sortField: 'slNo',
     sortDirection: 1,
-    toastTimer: null
+    toastTimer: null,
+    sheetFilter: null
   };
 
   const FIELD_ORDER = [
     'slNo', 'transportName', 'date', 'lrNo', 'truckNo', 'from', 'to', 'accountNo',
-    'ifscCode', 'bank', 'freight', 'tM', 'advance', 'advance2', 'advance3',
-    'podReceivedDate', 'codToPay', 'pendingTobilled', 'extraAmount', 'pmPaDate',
+    'ifscCode', 'bank', 'freight', 'tM', 'advance', 'date1', 'advance2', 'date2', 'advance3', 'date3',
+    'unloadingDate', 'podReceivedDate', 'balanceDate', 'codToPay', 'pendingTobilled', 'extraAmount', 'pmPaDate',
     'pM', 'pendingAmount', 'podAmountStatus', 'remarks', 'toPayStatus'
   ];
   const LABELS = {
     slNo: 'SL NO', transportName: 'TRSP NAME', date: 'DATE', lrNo: 'LR NO', truckNo: 'TRUCK NO',
     from: 'FROM', to: 'TO', accountNo: 'ACCOUNT NO', ifscCode: 'IFSC CODE', bank: 'PAYMENT MADE',
-    freight: 'FRIGHT', tM: 'T/M', advance: 'ADVANCE', advance2: 'ADVANCE2', advance3: 'ADVANCE3',
-    podReceivedDate: 'POD RECD Date', codToPay: 'Cash on Delivery (COD) :A/Topay&Ftopay',
+    freight: 'FRIGHT', tM: 'T/M', advance: 'ADVANCE', date1: '1ST ADV DATE',
+    advance2: 'ADVANCE2', date2: '2ND ADV DATE', advance3: 'ADVANCE3', date3: '3RD ADV DATE',
+    unloadingDate: 'UNLOADING DATE', podReceivedDate: 'POD RECD Date', balanceDate: 'BALANCE DATE',
+    codToPay: 'Cash on Delivery (COD) :A/Topay&Ftopay',
     pendingTobilled: 'Pending Amount: Tobilled', extraAmount: 'Extra Amount',
     pmPaDate: 'PM/PA Date', pM: 'P/M', pendingAmount: 'Pending Amount',
     podAmountStatus: 'POD Amount Status', remarks: 'REMARKS / NOTE', toPayStatus: 'ToPayStatus'
@@ -43,7 +46,7 @@
     'freight', 'tM', 'advance', 'advance2', 'advance3',
     'pendingTobilled', 'extraAmount', 'pM', 'pendingAmount'
   ]);
-  const DATE_FIELDS = new Set(['date', 'podReceivedDate', 'pmPaDate']);
+  const DATE_FIELDS = new Set(['date', 'date1', 'date2', 'date3', 'unloadingDate', 'podReceivedDate', 'pmPaDate', 'balanceDate']);
 
   function byId(id) { return document.getElementById(id); }
   function escapeHtml(value) {
@@ -86,6 +89,13 @@
   }
   function setAuthMessage(text, isError) {
     const box = byId('auth-message');
+    if (!box) return;
+    if (!text) {
+      box.hidden = true;
+      box.textContent = '';
+      return;
+    }
+    box.hidden = false;
     box.textContent = text;
     box.className = 'notice ' + (isError ? 'notice-error' : 'notice-info');
   }
@@ -97,6 +107,8 @@
     byId('app-shell').hidden = true;
     byId('auth-view').hidden = false;
     if (message) setAuthMessage(message, true);
+    else setAuthMessage('', false);
+    selectLoginUser('Admin');
   }
   function showApp(user) {
     state.user = user;
@@ -158,15 +170,236 @@
     }
     return '<td>' + escapeHtml(value) + '</td>';
   }
+  function parseRecordDate(val) {
+    if (!val) return null;
+    const str = String(val).trim();
+    if (!str) return null;
+    const dmy = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+    if (dmy) {
+      const day = parseInt(dmy[1], 10);
+      const month = parseInt(dmy[2], 10) - 1;
+      const year = parseInt(dmy[3], 10);
+      const d = new Date(year, month, day);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+    const ymd = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+    if (ymd) {
+      const year = parseInt(ymd[1], 10);
+      const month = parseInt(ymd[2], 10) - 1;
+      const day = parseInt(ymd[3], 10);
+      const d = new Date(year, month, day);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+    const fallback = new Date(str);
+    return Number.isNaN(fallback.getTime()) ? null : fallback;
+  }
+
+  function getShipmentPendingSince(rec) {
+    return rec.balanceDate || rec.unloadingDate || rec.date1 || rec.date || '';
+  }
+
+  function getShipmentDaysPending(rec) {
+    const dateStr = getShipmentPendingSince(rec);
+    const d = parseRecordDate(dateStr);
+    if (!d) return 0;
+    const diffMs = Date.now() - d.getTime();
+    return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+  }
+
+  function isShipmentOverdue(rec) {
+    const derived = withDerivedValues(rec);
+    const parsed = CALC.parseMoney(derived.pendingAmount, { allowEmpty: true });
+    if (!parsed.ok || parsed.empty || parsed.paise <= 0) return false;
+    const days = getShipmentDaysPending(rec);
+    if (days > 15) return true;
+    if (rec.balanceDate) {
+      const bd = parseRecordDate(rec.balanceDate);
+      if (bd && bd.getTime() < (Date.now() - 24 * 60 * 60 * 1000)) return true;
+    }
+    return false;
+  }
+
+  function isShipmentPodMissing(rec) {
+    const pod = String(rec.podReceivedDate || '').trim().toUpperCase();
+    return !pod || pod === 'PENDING' || pod === 'NO' || pod === '0';
+  }
+
+  function isShipmentOpenIssue(rec) {
+    if (!rec.lrNo || !String(rec.lrNo).trim()) return true;
+    if (!rec.transportName || !String(rec.transportName).trim()) return true;
+    if (!rec.truckNo || !String(rec.truckNo).trim()) return true;
+    const freightParsed = CALC.parseMoney(rec.freight, { allowEmpty: true });
+    if (!freightParsed.ok || freightParsed.empty || freightParsed.paise <= 0) return true;
+    const derived = withDerivedValues(rec);
+    const pendingParsed = CALC.parseMoney(derived.pendingAmount, { allowEmpty: true });
+    if (pendingParsed.ok && !pendingParsed.empty && pendingParsed.paise < 0) return true;
+    return false;
+  }
+
   function renderMetric(label, value, note) {
     return '<article class="metric-card"><span class="metric-label">' + escapeHtml(label) +
       '</span><strong class="metric-value">' + escapeHtml(value) +
       '</strong>' + (note ? '<span class="metric-note">' + escapeHtml(note) + '</span>' : '') + '</article>';
   }
+
   function renderDashboard() {
     const summary = numericTotals(state.records);
     const userName = state.user && (state.user.name || state.user.username);
+
+    // Status section cards (Section A)
+    const statusCards = [
+      { status: 'TOBILLED', title: 'TOBILLED', colorClass: 'status-card-tobilled', count: summary.statusCounts['TOBILLED'] || 0, badgeClass: 'status-badge-tobilled' },
+      { status: 'A/TO-PAY', title: 'A/TO-PAY', colorClass: 'status-card-atopay', count: summary.statusCounts['A/TO-PAY'] || 0, badgeClass: 'status-badge-atopay' },
+      { status: 'F/TO-PAY', title: 'F/TO-PAY', colorClass: 'status-card-ftopay', count: summary.statusCounts['F/TO-PAY'] || 0, badgeClass: 'status-badge-ftopay' }
+    ];
+
+    const statusGridHtml = statusCards.map(function (item) {
+      return '<button type="button" class="control-status-card ' + item.colorClass + '" data-action="sheet-filter" data-filter-type="status" data-filter-value="' + escapeHtml(item.status) + '" data-filter-label="Status: ' + escapeHtml(item.status) + '" title="Click to view ' + item.title + ' shipments in Live Excel Sheet">' +
+        '<div class="control-status-top">' +
+          '<span class="control-status-count">' + item.count + '</span>' +
+          '<span class="control-status-badge ' + item.badgeClass + '">' + escapeHtml(item.title) + '</span>' +
+        '</div>' +
+        '<div class="control-status-bottom">' +
+          '<span class="control-status-sub">' + (item.count === 1 ? 'Shipment' : 'Shipments') + '</span>' +
+          '<span class="control-card-cta">View in Sheet →</span>' +
+        '</div>' +
+      '</button>';
+    }).join('');
+
+    // Process Action Cards & Transporter-wise Balance Details (Section B & C)
+    let pendingCount = 0;
+    let pendingTotalPaise = 0;
+    let overdueCount = 0;
+    let overdueTotalPaise = 0;
+    let podMissingCount = 0;
+    let openIssuesCount = 0;
+    const pendingShipmentRows = [];
+
+    (state.records || []).forEach(function (rec) {
+      const derived = withDerivedValues(rec);
+      const parsedPending = CALC.parseMoney(derived.pendingAmount, { allowEmpty: true });
+      const hasPending = parsedPending.ok && !parsedPending.empty && parsedPending.paise > 0;
+      const days = getShipmentDaysPending(rec);
+      const overdue = isShipmentOverdue(rec);
+      const podMissing = isShipmentPodMissing(rec);
+      const openIssue = isShipmentOpenIssue(rec);
+
+      if (hasPending) {
+        pendingCount++;
+        pendingTotalPaise += parsedPending.paise;
+        if (overdue) {
+          overdueCount++;
+          overdueTotalPaise += parsedPending.paise;
+        }
+        const trsp = String(rec.transportName || '').trim() || 'Unassigned Transporter';
+        const pendingSince = getShipmentPendingSince(rec);
+        pendingShipmentRows.push({
+          record: rec,
+          transporter: trsp,
+          lrNo: rec.lrNo || '—',
+          truckNo: rec.truckNo || '—',
+          balancePaise: parsedPending.paise,
+          pendingSince: pendingSince ? formatDate(pendingSince) : '—',
+          daysPending: days,
+          isOverdue: overdue
+        });
+      }
+      if (podMissing) podMissingCount++;
+      if (openIssue) openIssuesCount++;
+    });
+
+    const actionCards = [
+      {
+        category: 'pending',
+        title: 'Pending',
+        badgeText: '⏳ Outstanding',
+        badgeClass: 'badge-pending',
+        subtitle: 'Outstanding payments',
+        count: pendingCount,
+        amount: formatMoneyPaise(pendingTotalPaise),
+        note: 'Shipments with balance payable',
+        filterLabel: 'Pending Balance Shipments'
+      },
+      {
+        category: 'overdue',
+        title: 'Overdue',
+        badgeText: '⚠️ Past Due (>15d)',
+        badgeClass: 'badge-overdue',
+        subtitle: 'Payments past due',
+        count: overdueCount,
+        amount: formatMoneyPaise(overdueTotalPaise),
+        note: 'Payments pending > 15 days',
+        filterLabel: 'Overdue Shipments (>15 days)'
+      },
+      {
+        category: 'pod_missing',
+        title: 'POD Missing',
+        badgeText: '📄 Awaiting POD',
+        badgeClass: 'badge-pod-missing',
+        subtitle: 'Shipments awaiting POD',
+        count: podMissingCount,
+        amount: podMissingCount + (podMissingCount === 1 ? ' shipment' : ' shipments'),
+        note: 'Missing delivery proof confirmation',
+        filterLabel: 'POD Missing Shipments'
+      },
+      {
+        category: 'open_issues',
+        title: 'Open Issues',
+        badgeText: '🔍 Unresolved',
+        badgeClass: 'badge-open-issues',
+        subtitle: 'Incomplete or unresolved items',
+        count: openIssuesCount,
+        amount: openIssuesCount + (openIssuesCount === 1 ? ' item' : ' items'),
+        note: 'Missing LR/Truck/Transporter or discrepancy',
+        filterLabel: 'Open Issues / Unresolved Records'
+      }
+    ];
+
+    const actionCardsHtml = actionCards.map(function (card) {
+      return '<button type="button" class="control-action-card" data-action="sheet-filter" data-filter-type="category" data-filter-value="' + card.category + '" data-filter-label="' + escapeHtml(card.filterLabel) + '" title="Click to view ' + card.title + ' in Live Excel Sheet">' +
+        '<div class="action-card-header">' +
+          '<span class="action-card-badge ' + card.badgeClass + '">' + card.badgeText + '</span>' +
+          '<span class="action-card-count">' + card.count + '</span>' +
+        '</div>' +
+        '<div class="action-card-body">' +
+          '<h4 class="action-card-title">' + card.title + '</h4>' +
+          '<p class="action-card-sub">' + card.subtitle + '</p>' +
+          '<strong class="action-card-amount">' + card.amount + '</strong>' +
+          '<span class="action-card-note">' + card.note + '</span>' +
+        '</div>' +
+        '<div class="action-card-footer">' +
+          '<span class="control-card-cta">Open in Live Sheet →</span>' +
+        '</div>' +
+      '</button>';
+    }).join('');
+
+    // Balance Payment Transporter-wise Table Rows
+    pendingShipmentRows.sort(function (a, b) {
+      const trspCmp = a.transporter.localeCompare(b.transporter);
+      if (trspCmp !== 0) return trspCmp;
+      return b.daysPending - a.daysPending;
+    });
+
+    const pendingTableRows = pendingShipmentRows.length ? pendingShipmentRows.map(function (row) {
+      const statusBadge = row.isOverdue
+        ? '<span class="status-badge overdue">⚠️ Overdue</span>'
+        : '<span class="status-badge pending">⏳ Pending</span>';
+      const daysBadge = '<span class="days-pill ' + (row.isOverdue ? 'pill-overdue' : 'pill-normal') + '">' + row.daysPending + ' days</span>';
+      return '<tr>' +
+        '<td><button type="button" class="table-transporter-btn" data-action="sheet-filter" data-filter-type="transporter" data-filter-value="' + escapeHtml(row.transporter) + '" data-filter-label="Transporter: ' + escapeHtml(row.transporter) + '" title="Click to filter sheet by ' + escapeHtml(row.transporter) + '"><strong>' + escapeHtml(row.transporter) + '</strong> <span class="filter-icon">🔍</span></button></td>' +
+        '<td>' + escapeHtml(row.lrNo) + '</td>' +
+        '<td>' + escapeHtml(row.truckNo) + '</td>' +
+        '<td class="numeric" style="color: #b91c1c; font-weight: 800;">' + formatMoneyPaise(row.balancePaise) + '</td>' +
+        '<td style="text-align: center;">' + escapeHtml(row.pendingSince) + '</td>' +
+        '<td style="text-align: center;">' + daysBadge + '</td>' +
+        '<td style="text-align: center;">' + statusBadge + '</td>' +
+        '<td style="text-align: center;"><button type="button" class="btn btn-secondary btn-sm" data-action="sheet-filter" data-filter-type="transporter" data-filter-value="' + escapeHtml(row.transporter) + '" data-filter-label="Transporter: ' + escapeHtml(row.transporter) + '">View in Sheet</button></td>' +
+      '</tr>';
+    }).join('') : '<tr><td colspan="8" class="empty-state">🎉 All caught up — no outstanding balance payments!</td></tr>';
+
+    // Financial Metrics Summary
     const metrics = [
+      ['Total Ledger Closing', formatMoneyPaise(summary.pendingAmountPaise), 'Net outstanding ledger closing'],
       ['Total shipments', String(summary.shipmentCount), 'All statuses'],
       ['Total FRIGHT', formatMoneyPaise(summary.freightPaise), 'All shipments'],
       ['Total advances', formatMoneyPaise(summary.advancePaise), 'ADVANCE + ADVANCE2 + ADVANCE3'],
@@ -178,21 +411,39 @@
       ['Numeric COD / To-Pay', formatMoneyPaise(summary.codToPayPaise), 'Text placeholders excluded']
     ];
     const cards = metrics.map(function (m) { return renderMetric(m[0], m[1], m[2]); }).join('');
-    const statuses = CALC.STATUS.map(function (status) {
-      return '<article class="status-card">' + statusBadge(status) + '<span>' +
-        summary.statusCounts[status] + ' shipment' + (summary.statusCounts[status] === 1 ? '' : 's') + '</span></article>';
-    }).join('');
+
     return '<section class="dashboard-hero-banner"><div class="banner-welcome">' +
-      '<h2>👋 Hello, ' + escapeHtml(userName || 'there') + '! Welcome to SR Brokerage Ledger &amp; Dashboard</h2>' +
-      '<p>Real-time freight billing and transparent broker settlement reconciliation.</p></div>' +
+      '<div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.3rem;">' +
+      '<h2 style="margin:0;">👋 Hello, ' + escapeHtml(userName || 'there') + '! Welcome to SR Brokerage Ledger</h2>' +
+      '<span class="control-centre-live-badge">● SHIPMENT CONTROL CENTRE</span></div>' +
+      '<p>Live shipment overview · Status distribution, outstanding payments, and action items.</p></div>' +
       '<div class="banner-quick-actions">' +
       (state.preview || state.loadingRecords || state.loadError ? '' : '<button class="btn btn-primary" type="button" data-action="add-shipment">＋ Add Shipment</button>') +
       '<button class="btn btn-secondary" type="button" data-action="go-sheet">View Excel Sheet</button>' +
       '<button class="btn btn-secondary" type="button" data-action="export">Export Excel</button>' +
       '</div></section>' +
-      '<div class="metrics-grid">' + cards + '</div>' +
-      '<section class="panel"><h2 class="section-title">Shipment status</h2><div class="status-grid">' + statuses + '</div></section>' +
-      '<section class="panel"><div class="toolbar"><div><h2 class="section-title">Recent shipments</h2><p class="toolbar-help">Calculated balances update from the source values.</p></div>' +
+      '<section class="panel control-centre-panel"><div class="section-header-wrap"><div>' +
+      '<h3 class="section-title">📊 Shipment Status</h3>' +
+      '<p class="toolbar-help">Total volume by payment status. Click any status card to filter in Live Excel Sheet.</p></div>' +
+      '<span class="section-hint-pill">⚡ Click card to filter sheet</span></div>' +
+      '<div class="status-control-grid">' + statusGridHtml + '</div></section>' +
+      '<section class="panel control-centre-panel"><div class="section-header-wrap"><div>' +
+      '<h3 class="section-title">⚡ Payment and Issue Overview</h3>' +
+      '<p class="toolbar-help">High-priority operational action items and outstanding balances. Click any card to view records.</p></div>' +
+      '<span class="section-hint-pill">⚡ Click card to filter sheet</span></div>' +
+      '<div class="action-cards-grid">' + actionCardsHtml + '</div></section>' +
+      '<section class="panel control-centre-panel"><div class="section-header-wrap"><div>' +
+      '<h3 class="section-title">💰 Balance Payment – Transporter-wise</h3>' +
+      '<p class="toolbar-help">Pending freight balances grouped transporter-wise with duration and payment status. Click a transporter name to filter the Live Excel Sheet.</p></div>' +
+      '<div class="section-header-actions"><span class="balance-summary-pill">Total Pending: <strong>' + formatMoneyPaise(pendingTotalPaise) + '</strong> (' + pendingShipmentRows.length + ' shipments)</span></div></div>' +
+      '<div class="table-wrap" tabindex="0" aria-label="Transporter balance payments table"><table class="ledger-table"><thead><tr>' +
+      '<th>Transporter Name</th><th>LR Number</th><th>Truck Number</th><th class="numeric">Balance Amount</th><th style="text-align:center;">Pending Since</th><th style="text-align:center;">Days Pending</th><th style="text-align:center;">Payment Status</th><th style="text-align:center;">Action</th>' +
+      '</tr></thead><tbody>' + pendingTableRows + '</tbody></table></div></section>' +
+      '<section class="panel"><div class="section-header-wrap"><div>' +
+      '<h3 class="section-title">📈 Ledger Closing &amp; Financial Summary</h3>' +
+      '<p class="toolbar-help">Aggregated financial figures across all shipments and payment statuses.</p></div></div>' +
+      '<div class="metrics-grid">' + cards + '</div></section>' +
+      '<section class="panel"><div class="toolbar"><div><h3 class="section-title">Recent shipments</h3><p class="toolbar-help">Calculated balances update from the source values.</p></div>' +
       '<button class="btn btn-secondary" type="button" data-action="go-ledger">Open Shipment Ledger</button></div>' +
       renderTable(state.records.slice().sort(sortBySlNo).slice(0, 5), false) + '</section>';
   }
@@ -237,31 +488,88 @@
       '<span>FRIGHT in view: <strong>' + formatMoneyPaise(filteredSummary.freightPaise) + '</strong> · Pending in view: <strong>' + formatMoneyPaise(filteredSummary.pendingAmountPaise) + '</strong></span></div>' +
       renderTable(state.filtered, true) + '</section>';
   }
+  function getFilteredSheetRecords() {
+    let records = state.records.slice().sort(sortBySlNo).map(withDerivedValues);
+    if (!state.sheetFilter) return records;
+    const filter = state.sheetFilter;
+    if (filter.type === 'status') {
+      return records.filter(function (r) {
+        return r.toPayStatus === filter.value;
+      });
+    }
+    if (filter.type === 'transporter') {
+      const target = String(filter.value || '').trim().toLowerCase();
+      return records.filter(function (r) {
+        return String(r.transportName || '').trim().toLowerCase() === target;
+      });
+    }
+    if (filter.type === 'category') {
+      if (filter.value === 'pending') {
+        return records.filter(function (r) {
+          const parsed = CALC.parseMoney(r.pendingAmount, { allowEmpty: true });
+          return parsed.ok && !parsed.empty && parsed.paise > 0;
+        });
+      }
+      if (filter.value === 'overdue') {
+        return records.filter(function (r) {
+          return isShipmentOverdue(r);
+        });
+      }
+      if (filter.value === 'pod_missing') {
+        return records.filter(function (r) {
+          return isShipmentPodMissing(r);
+        });
+      }
+      if (filter.value === 'open_issues') {
+        return records.filter(function (r) {
+          return isShipmentOpenIssue(r);
+        });
+      }
+    }
+    return records;
+  }
+
   function renderSheet() {
-    const summary = numericTotals(state.filtered);
-    const rows = state.filtered.length ? state.filtered.map(function (record) {
+    const fullRecords = getFilteredSheetRecords();
+    const summary = numericTotals(fullRecords);
+    const totalAllCount = state.records.length;
+    const filterBanner = state.sheetFilter ?
+      ('<div class="sheet-filter-banner" role="status">' +
+        '<div class="sheet-filter-info">' +
+          '<span class="sheet-filter-badge">🔍 FILTERED VIEW</span>' +
+          '<span class="sheet-filter-label">Filtered by: <strong>' + escapeHtml(state.sheetFilter.label) + '</strong></span>' +
+          '<span class="sheet-filter-count">(' + fullRecords.length + ' of ' + totalAllCount + ' shipments)</span>' +
+        '</div>' +
+        '<button class="btn btn-secondary btn-sm sheet-clear-filter-btn" type="button" data-action="clear-sheet-filter">✕ Show all records</button>' +
+      '</div>') : '';
+    const rows = fullRecords.length ? fullRecords.map(function (record) {
       return '<tr data-id="' + escapeHtml(record.id) + '">' + FIELD_ORDER.map(function (field) {
         return recordCell(record, field).replace('<td', '<td');
       }).join('') + '</tr>';
     }).join('') : '<tr><td class="empty-state" colspan="' + FIELD_ORDER.length + '">' +
       (state.loadingRecords ? 'Loading the latest shipment data…' :
-        (state.loadError ? escapeHtml(state.loadError) : 'No shipments in the current view.')) + '</td></tr>';
-    const totals = '<tr><td class="total-label" colspan="10">TOTAL (' + state.filtered.length + ' records)</td>' +
-      '<td class="numeric">' + formatMoneyPaise(summary.freightPaise) + '</td>' +
-      '<td class="numeric">' + formatMoneyPaise(summary.tMPaise) + '</td>' +
-      '<td class="numeric">' + formatMoneyPaise(summary.advancePaise - summary.advance2Paise - summary.advance3Paise) + '</td>' +
-      '<td class="numeric">' + formatMoneyPaise(summary.advance2Paise) + '</td>' +
-      '<td class="numeric">' + formatMoneyPaise(summary.advance3Paise) + '</td>' +
-      '<td></td><td class="numeric">' + formatMoneyPaise(summary.codToPayPaise) + '</td>' +
-      '<td class="numeric">' + formatMoneyPaise(summary.pendingTobilledPaise) + '</td>' +
-      '<td class="numeric">' + formatMoneyPaise(summary.extraAmountPaise) + '</td>' +
-      '<td></td><td class="numeric">' + formatMoneyPaise(summary.pMPaise) + '</td>' +
-      '<td class="numeric">' + formatMoneyPaise(summary.pendingAmountPaise) + '</td><td colspan="3"></td></tr>';
+        (state.loadError ? escapeHtml(state.loadError) : (state.sheetFilter ? 'No shipments matching active filter: ' + escapeHtml(state.sheetFilter.label) : 'No shipments in the ledger.'))) + '</td></tr>';
+    const totalsCells = FIELD_ORDER.map(function (field, idx) {
+      if (idx === 0) return '<td class="total-label">TOTAL (' + fullRecords.length + ' records)</td>';
+      if (field === 'freight') return '<td class="numeric">' + formatMoneyPaise(summary.freightPaise) + '</td>';
+      if (field === 'tM') return '<td class="numeric">' + formatMoneyPaise(summary.tMPaise) + '</td>';
+      if (field === 'advance') return '<td class="numeric">' + formatMoneyPaise(summary.advancePaise - summary.advance2Paise - summary.advance3Paise) + '</td>';
+      if (field === 'advance2') return '<td class="numeric">' + formatMoneyPaise(summary.advance2Paise) + '</td>';
+      if (field === 'advance3') return '<td class="numeric">' + formatMoneyPaise(summary.advance3Paise) + '</td>';
+      if (field === 'codToPay') return '<td class="numeric">' + formatMoneyPaise(summary.codToPayPaise) + '</td>';
+      if (field === 'pendingTobilled') return '<td class="numeric">' + formatMoneyPaise(summary.pendingTobilledPaise) + '</td>';
+      if (field === 'extraAmount') return '<td class="numeric">' + formatMoneyPaise(summary.extraAmountPaise) + '</td>';
+      if (field === 'pM') return '<td class="numeric">' + formatMoneyPaise(summary.pMPaise) + '</td>';
+      if (field === 'pendingAmount') return '<td class="numeric">' + formatMoneyPaise(summary.pendingAmountPaise) + '</td>';
+      return '<td></td>';
+    }).join('');
+    const totals = '<tr>' + totalsCells + '</tr>';
     return '<section class="panel"><div class="toolbar"><div class="sheet-toolbar-heading"><h2>📑 Live Excel Spreadsheet View</h2>' +
-      '<p class="toolbar-help">Live shipment rows, totals, and calculations from the Broker Ledger.</p></div>' +
+      '<p class="toolbar-help">Complete shipment records, formulas, and closing calculations directly from the Broker Ledger.</p></div>' +
       '<div class="view-actions"><button class="btn btn-secondary" type="button" data-action="refresh">↻ Refresh</button><div class="zoom-controls"><label for="sheet-zoom">Zoom</label><select id="sheet-zoom"><option value="0.8">80%</option><option value="0.9">90%</option><option value="1" selected>100%</option><option value="1.15">115%</option></select></div>' +
       '<button class="btn btn-secondary" type="button" data-action="fullscreen">⛶ Full Screen</button><button class="btn btn-secondary" type="button" data-action="print">🖨 Print</button><button class="btn btn-primary" type="button" data-action="export">Download Excel (.xlsx)</button></div></div>' +
-      '<div class="table-meta"><span>' + state.filtered.length + ' rows</span><span>Calculated columns are highlighted.</span></div>' +
+      filterBanner +
+      '<div class="table-meta"><span>' + fullRecords.length + ' rows ' + (state.sheetFilter ? '(filtered view)' : '(full ledger)') + '</span><span>Calculated columns are highlighted.</span></div>' +
       '<div id="sheet-wrap" class="sheet-wrap" tabindex="0" aria-label="Spreadsheet-style shipment ledger"><table class="sheet-table"><thead><tr>' +
       FIELD_ORDER.map(function (field) { return headerCell(field, true); }).join('') + '</tr></thead><tbody>' + rows + '</tbody><tfoot>' + totals + '</tfoot></table></div>' +
       '<div class="summary-strip"><span>Freight: <strong>' + formatMoneyPaise(summary.freightPaise) + '</strong></span><span>Pending: <strong>' +
@@ -392,32 +700,28 @@
   async function initializeSession() {
     const existing = getCurrentSession();
     if (!existing || !existing.token) {
-    showAuth();
-    return;
+      showAuth();
+      return;
     }
-    try {
-    const versionResult = await window.BrokerApi.version();
-    const serverVersion = Number(versionResult.version);
-    if (!Number.isFinite(serverVersion)) throw new Error('The backend did not return a valid data version.');
-    state.version = serverVersion;
     state.user = existing;
     state.loadingRecords = true;
     state.loadError = '';
     showApp(existing);
     setCloudStatus(false, 'Loading ledger…');
     byId('footer-sync').textContent = 'Loading latest ledger…';
-    await refreshRecords();
+    try {
+      await refreshRecords();
     } catch (error) {
-    if (state.user) {
-      state.loadingRecords = false;
-      state.loadError = 'The latest ledger could not be loaded. Check your connection and retry.';
-      setCloudStatus(false, 'Ledger unavailable');
-      byId('footer-sync').textContent = 'Ledger load failed: ' + error.message;
-      render();
-      toast('You are signed in, but the latest ledger could not be loaded: ' + error.message, 'error');
-      return;
-    }
-    showAuth('Your session could not be verified: ' + error.message);
+      if (state.user) {
+        state.loadingRecords = false;
+        state.loadError = 'The latest ledger could not be loaded. Check your connection and retry.';
+        setCloudStatus(false, 'Ledger unavailable');
+        byId('footer-sync').textContent = 'Ledger load failed: ' + error.message;
+        render();
+        toast('You are signed in, but the latest ledger could not be loaded: ' + error.message, 'error');
+        return;
+      }
+      showAuth('Your session could not be verified: ' + error.message);
     }
   }
   function updateAutocompleteSuggestions() {
@@ -610,11 +914,23 @@
     });
 
     const saveBtn = byId('save-shipment');
+    const clearAllBtn = byId('clear-all-dialog');
+    const fillPendingBtn = byId('btn-fill-pending');
     if (saveBtn) {
       saveBtn.hidden = isView;
       saveBtn.disabled = false;
-      saveBtn.textContent = 'Save Shipment';
+      saveBtn.textContent = existing ? 'Update Shipment' : 'Add & Submit Shipment';
     }
+    if (clearAllBtn) clearAllBtn.hidden = isView;
+    if (fillPendingBtn) fillPendingBtn.hidden = isView;
+    [
+      byId('clear-shipment-info'),
+      byId('clear-payment-details'),
+      byId('clear-advance-payments'),
+      byId('clear-bank-pod-details')
+    ].forEach(function (btn) {
+      if (btn) btn.hidden = isView;
+    });
     byId('cancel-dialog').textContent = isView ? 'Close' : 'Cancel';
     byId('shipment-dialog-title').textContent = isView ? 'Shipment Details' : (existing ? 'Edit Shipment' : 'Add Shipment');
     byId('form-error').hidden = true;
@@ -686,47 +1002,56 @@
       setBusy(false);
       if (saveBtn) {
         saveBtn.disabled = false;
-        saveBtn.textContent = 'Save Shipment';
+        saveBtn.textContent = isEditing ? 'Update Shipment' : 'Add & Submit Shipment';
       }
       return;
     }
     closeShipmentDialog();
-    try {
-      await refreshRecords();
+    if (response && response.record) {
+      const saved = withDerivedValues(response.record);
+      if (isEditing) {
+        const idx = state.records.findIndex(function (item) { return item.id === saved.id; });
+        if (idx >= 0) state.records[idx] = saved;
+      } else {
+        state.records.push(saved);
+      }
+      render();
       updateAutocompleteSuggestions();
-      toast((isEditing ? 'Shipment updated.' : 'Shipment saved.') + (response.warning ? ' ' + response.warning : ''), response.warning ? 'error' : 'success');
-    } catch (error) {
+    }
+    toast((isEditing ? 'Shipment updated.' : 'Shipment saved.') + (response.warning ? ' ' + response.warning : ''), response.warning ? 'error' : 'success');
+    refreshRecords().catch(function (error) {
       setCloudStatus(false, 'Offline — last data may be stale');
       byId('footer-sync').textContent = 'Save completed, but refresh failed; displayed data may be outdated.';
-      toast((isEditing ? 'Shipment updated.' : 'Shipment saved.') + ' Refresh failed: ' + error.message, 'error');
-    } finally {
-      setBusy(false);
-      if (saveBtn) {
-        saveBtn.disabled = false;
-        saveBtn.textContent = 'Save Shipment';
-      }
+      toast('Shipment saved, but background sync refresh encountered an issue: ' + error.message, 'error');
+    });
+    setBusy(false);
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = isEditing ? 'Update Shipment' : 'Add & Submit Shipment';
     }
   }
   async function deleteShipment(id) {
     if (!state.user || state.user.role !== 'Admin') {
-    toast('Only an administrator can delete a shipment.', 'error');
-    return;
+      toast('Only an administrator can delete a shipment.', 'error');
+      return;
     }
     const record = state.records.find(function (item) { return item.id === id; });
     if (!record || !window.confirm('Delete shipment LR No ' + record.lrNo + '? This cannot be undone.')) return;
+    const prevRecords = state.records.slice();
+    state.records = state.records.filter(function (item) { return item.id !== id; });
+    render();
     let response;
     try {
-    response = await window.BrokerApi.remove(id);
+      response = await window.BrokerApi.remove(id);
+      toast('Shipment deleted.' + (response.warning ? ' ' + response.warning : ''), response.warning ? 'error' : 'success');
+      refreshRecords().catch(function (error) {
+        setCloudStatus(false, 'Offline — last data may be stale');
+        toast('Shipment deleted, but background sync refresh encountered an issue: ' + error.message, 'error');
+      });
     } catch (error) {
-    toast(error.message, 'error');
-    return;
-    }
-    try {
-    await refreshRecords();
-    toast('Shipment deleted.' + (response.warning ? ' ' + response.warning : ''), response.warning ? 'error' : 'success');
-    } catch (error) {
-    setCloudStatus(false, 'Offline — last data may be stale');
-    toast('Shipment was deleted, but refresh failed: ' + error.message, 'error');
+      state.records = prevRecords;
+      render();
+      toast(error.message, 'error');
     }
   }
   function dateForExport(value) {
@@ -740,41 +1065,224 @@
     const parsed = CALC.parseMoney(value);
     return parsed.ok ? CALC.fromPaise(parsed.paise) : String(value);
   }
-  function exportWorkbook() {
-    if (!window.XLSX) {
-    toast('The local Excel library did not load. Reload the page and try again.', 'error');
-    return;
+  async function exportWorkbook(btn) {
+    const originalText = btn ? btn.textContent : '';
+    if (btn) {
+      btn.textContent = '⏳ Generating Excel…';
+      btn.disabled = true;
     }
-    const data = state.records.slice().sort(sortBySlNo).map(withDerivedValues);
-    const rows = data.map(function (record) {
-    return FIELD_ORDER.map(function (field) {
-      if (DATE_FIELDS.has(field)) return dateForExport(record[field]);
-      if (field === 'codToPay') {
-        const parsed = CALC.parseMoney(record[field], { allowEmpty: true });
-        return parsed.ok && !parsed.empty ? CALC.fromPaise(parsed.paise) : (record[field] || '');
+    try {
+      const data = state.records.slice().sort(sortBySlNo).map(withDerivedValues);
+      const summary = CALC.summarize(data);
+      const filename = 'Broker_Ledger_' + new Date().toISOString().slice(0, 10) + '.xlsx';
+
+      if (window.ExcelJS) {
+      try {
+        const workbook = new window.ExcelJS.Workbook();
+        workbook.creator = "SR Brokerage Ledger";
+        workbook.created = new Date();
+
+        const ws = workbook.addWorksheet('Broker Ledger', {
+          views: [{ state: 'frozen', ySplit: 1, showGridLines: true }]
+        });
+
+        ws.columns = FIELD_ORDER.map(function (field) {
+          const label = LABELS[field] || field;
+          let width = Math.max(12, Math.min(32, label.length + 4));
+          if (field === 'slNo') width = 8;
+          else if (field === 'transportName') width = 24;
+          else if (field === 'truckNo') width = 16;
+          else if (field === 'remarks') width = 30;
+          else if (MONEY_FIELDS.has(field) || field === 'codToPay') width = 16;
+          else if (DATE_FIELDS.has(field)) width = 14;
+          return { header: label, key: field, width: width };
+        });
+
+        const navyHeaderFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF002060' } };
+        const statusHeaderFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F766E' } };
+        const calcHeaderFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF047857' } };
+        const codHeaderFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC00000' } };
+
+        const thinBorder = {
+          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          right: { style: 'thin', color: { argb: 'FFCBD5E1' } }
+        };
+
+        const headerRow = ws.getRow(1);
+        headerRow.height = 28;
+        headerRow.eachCell(function (cell, colNumber) {
+          const field = FIELD_ORDER[colNumber - 1];
+          cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+          cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+          cell.border = thinBorder;
+
+          if (field === 'toPayStatus') cell.fill = statusHeaderFill;
+          else if (field === 'pendingTobilled' || field === 'pendingAmount') cell.fill = calcHeaderFill;
+          else if (field === 'codToPay' || field === 'podReceivedDate') cell.fill = codHeaderFill;
+          else cell.fill = navyHeaderFill;
+        });
+
+        data.forEach(function (record, rowIndex) {
+          const rowData = {};
+          FIELD_ORDER.forEach(function (field) {
+            if (DATE_FIELDS.has(field)) {
+              rowData[field] = dateForExport(record[field]);
+            } else if (field === 'codToPay') {
+              const parsed = CALC.parseMoney(record[field], { allowEmpty: true });
+              rowData[field] = parsed.ok && !parsed.empty ? CALC.fromPaise(parsed.paise) : (record[field] || '');
+            } else if (MONEY_FIELDS.has(field)) {
+              const parsed = CALC.parseMoney(record[field], { allowEmpty: true });
+              rowData[field] = parsed.ok && !parsed.empty ? CALC.fromPaise(parsed.paise) : (record[field] === 0 ? 0 : '');
+            } else {
+              rowData[field] = record[field] === null || record[field] === undefined ? '' : record[field];
+            }
+          });
+
+          const row = ws.addRow(rowData);
+          row.height = 21;
+          const isEven = rowIndex % 2 === 1;
+
+          row.eachCell({ includeEmpty: true }, function (cell, colNumber) {
+            const field = FIELD_ORDER[colNumber - 1];
+            cell.border = thinBorder;
+            cell.font = { name: 'Calibri', size: 10, color: { argb: 'FF111827' } };
+            cell.alignment = { vertical: 'middle' };
+
+            if (isEven) {
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+            }
+
+            if (field === 'slNo' || DATE_FIELDS.has(field) || field === 'lrNo' || field === 'truckNo' || field === 'podAmountStatus') {
+              cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            } else if (MONEY_FIELDS.has(field) || (field === 'codToPay' && typeof cell.value === 'number')) {
+              cell.alignment = { horizontal: 'right', vertical: 'middle' };
+              cell.numFmt = '#,##0.00';
+            }
+
+            if (field === 'pendingTobilled' || field === 'pendingAmount') {
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFECFDF5' } };
+              cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF065F46' } };
+            }
+
+            if (field === 'toPayStatus' && cell.value) {
+              const st = String(cell.value).toUpperCase();
+              cell.alignment = { horizontal: 'center', vertical: 'middle' };
+              if (st.includes('A/TO-PAY')) {
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } };
+                cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF92400E' } };
+              } else if (st.includes('F/TO-PAY')) {
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } };
+                cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF991B1B' } };
+              } else {
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDBEAFE' } };
+                cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF1E40AF' } };
+              }
+            }
+          });
+        });
+
+        const totalsData = {};
+        FIELD_ORDER.forEach(function (f) { totalsData[f] = ''; });
+        totalsData.slNo = 'TOTAL (' + data.length + ' shipments)';
+        totalsData.freight = CALC.fromPaise(summary.freightPaise);
+        totalsData.tM = CALC.fromPaise(summary.tMPaise);
+        totalsData.advance = CALC.fromPaise(summary.advancePaise - summary.advance2Paise - summary.advance3Paise);
+        totalsData.advance2 = CALC.fromPaise(summary.advance2Paise);
+        totalsData.advance3 = CALC.fromPaise(summary.advance3Paise);
+        totalsData.codToPay = CALC.fromPaise(summary.codToPayPaise);
+        totalsData.pendingTobilled = CALC.fromPaise(summary.pendingTobilledPaise);
+        totalsData.extraAmount = CALC.fromPaise(summary.extraAmountPaise);
+        totalsData.pM = CALC.fromPaise(summary.pMPaise);
+        totalsData.pendingAmount = CALC.fromPaise(summary.pendingAmountPaise);
+
+        const totRow = ws.addRow(totalsData);
+        totRow.height = 25;
+        const totalYellowFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF08A' } };
+        const totalBorder = {
+          top: { style: 'medium', color: { argb: 'FFCA8A04' } },
+          bottom: { style: 'double', color: { argb: 'FFCA8A04' } },
+          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          right: { style: 'thin', color: { argb: 'FFCBD5E1' } }
+        };
+
+        totRow.eachCell({ includeEmpty: true }, function (cell, colNumber) {
+          const field = FIELD_ORDER[colNumber - 1];
+          cell.fill = totalYellowFill;
+          cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF000000' } };
+          cell.border = totalBorder;
+          if (MONEY_FIELDS.has(field) || field === 'codToPay') {
+            cell.alignment = { horizontal: 'right', vertical: 'middle' };
+            cell.numFmt = '#,##0.00';
+          } else {
+            cell.alignment = { vertical: 'middle' };
+          }
+        });
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        if (typeof window.saveAs === 'function') {
+          window.saveAs(blob, filename);
+        } else {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(function () {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          }, 200);
+        }
+        toast('Excel workbook downloaded with application styles.', 'success');
+        return;
+      } catch (excelErr) {
+        console.warn('ExcelJS styled export error, falling back to SheetJS:', excelErr);
       }
-      if (MONEY_FIELDS.has(field)) return numericExportValue(record[field]);
-      return record[field] === null || record[field] === undefined ? '' : record[field];
+    }
+
+    if (!window.XLSX) {
+      toast('The local Excel library did not load. Reload the page and try again.', 'error');
+      return;
+    }
+    const rows = data.map(function (record) {
+      return FIELD_ORDER.map(function (field) {
+        if (DATE_FIELDS.has(field)) return dateForExport(record[field]);
+        if (field === 'codToPay') {
+          const parsed = CALC.parseMoney(record[field], { allowEmpty: true });
+          return parsed.ok && !parsed.empty ? CALC.fromPaise(parsed.paise) : (record[field] || '');
+        }
+        if (MONEY_FIELDS.has(field)) return numericExportValue(record[field]);
+        return record[field] === null || record[field] === undefined ? '' : record[field];
+      });
     });
+    const totals = FIELD_ORDER.map(function (field, idx) {
+      if (idx === 0) return 'TOTAL (' + data.length + ' shipments)';
+      if (field === 'freight') return CALC.fromPaise(summary.freightPaise);
+      if (field === 'tM') return CALC.fromPaise(summary.tMPaise);
+      if (field === 'advance') return CALC.fromPaise(summary.advancePaise - summary.advance2Paise - summary.advance3Paise);
+      if (field === 'advance2') return CALC.fromPaise(summary.advance2Paise);
+      if (field === 'advance3') return CALC.fromPaise(summary.advance3Paise);
+      if (field === 'codToPay') return CALC.fromPaise(summary.codToPayPaise);
+      if (field === 'pendingTobilled') return CALC.fromPaise(summary.pendingTobilledPaise);
+      if (field === 'extraAmount') return CALC.fromPaise(summary.extraAmountPaise);
+      if (field === 'pM') return CALC.fromPaise(summary.pMPaise);
+      if (field === 'pendingAmount') return CALC.fromPaise(summary.pendingAmountPaise);
+      return '';
     });
-    const summary = CALC.summarize(data);
-    const totals = Array(FIELD_ORDER.length).fill('');
-    totals[0] = 'TOTAL (' + data.length + ' shipments)';
-    totals[10] = CALC.fromPaise(summary.freightPaise);
-    totals[11] = CALC.fromPaise(summary.tMPaise);
-    totals[12] = CALC.fromPaise(summary.advancePaise - summary.advance2Paise - summary.advance3Paise);
-    totals[13] = CALC.fromPaise(summary.advance2Paise);
-    totals[14] = CALC.fromPaise(summary.advance3Paise);
-    totals[17] = CALC.fromPaise(summary.pendingTobilledPaise);
-    totals[18] = CALC.fromPaise(summary.extraAmountPaise);
-    totals[20] = CALC.fromPaise(summary.pMPaise);
-    totals[21] = CALC.fromPaise(summary.pendingAmountPaise);
-    totals[16] = CALC.fromPaise(summary.codToPayPaise);
     const worksheet = window.XLSX.utils.aoa_to_sheet([FIELD_ORDER.map(function (field) { return LABELS[field]; })].concat(rows, [totals]));
     worksheet['!cols'] = FIELD_ORDER.map(function (field) { return { wch: Math.max(12, Math.min(30, LABELS[field].length + 3)) }; });
     const workbook = window.XLSX.utils.book_new();
     window.XLSX.utils.book_append_sheet(workbook, worksheet, 'Broker Ledger');
-    window.XLSX.writeFile(workbook, 'Broker_Ledger_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+    window.XLSX.writeFile(workbook, filename);
+    } finally {
+      if (btn) {
+        btn.textContent = originalText;
+        btn.disabled = false;
+      }
+    }
   }
   function normalizeHeader(value) {
     return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -785,7 +1293,12 @@
     from: ['from', 'fromcity'], to: ['to', 'tocity'], accountNo: ['accountno'],
     ifscCode: ['ifsccode', 'ifsc'], bank: ['paymentmade', 'bank', 'bankname'],
     freight: ['fright', 'freight'], tM: ['tm', 't/m'], advance: ['advance'],
-    advance2: ['advance2'], advance3: ['advance3'], podReceivedDate: ['podrecddate', 'podreceiveddate'],
+    date1: ['1stadvdate', '1stadvancegivendate', 'advancedate', 'date1'],
+    advance2: ['advance2'], date2: ['2ndadvdate', '2ndadvancegivendate', 'advance2date', 'date2'],
+    advance3: ['advance3'], date3: ['3rdadvdate', '3rdadvancegivendate', 'advance3date', 'date3'],
+    unloadingDate: ['unloadingdate', 'unloaddate'],
+    podReceivedDate: ['podrecddate', 'podreceiveddate'],
+    balanceDate: ['balancedate', 'baldate'],
     codToPay: ['cashondeliverycodatopayftopay', 'codtopay', 'cashondelivery'],
     pendingTobilled: ['pendingamounttobilled'], extraAmount: ['extraamount'],
     pmPaDate: ['pmapadate', 'pmapdate'], pM: ['pm'], pendingAmount: ['pendingamount'],
@@ -923,35 +1436,34 @@
     setBusy(true);
     byId('login-button').textContent = 'Signing in…';
     try {
-    const user = await window.BrokerApi.login(username, password);
-    sessionStorage.setItem('broker-ledger-session', JSON.stringify(user));
-    byId('login-password').value = '';
-    state.user = user;
-    state.loadingRecords = true;
-    state.loadError = '';
-    showApp(user);
-    setCloudStatus(false, 'Loading ledger…');
-    byId('footer-sync').textContent = 'Loading latest ledger…';
-    try {
-      await refreshRecords();
-    } catch (loadError) {
-      if (!state.user) return;
-      state.loadingRecords = false;
-      state.loadError = 'The latest ledger could not be loaded. Check your connection and retry.';
-      setCloudStatus(false, 'Ledger unavailable');
-      byId('footer-sync').textContent = 'Ledger load failed: ' + loadError.message;
-      render();
-      toast('You are signed in, but the latest ledger could not be loaded: ' + loadError.message, 'error');
-    }
+      const user = await window.BrokerApi.login(username, password);
+      sessionStorage.setItem('broker-ledger-session', JSON.stringify(user));
+      byId('login-password').value = '';
+      state.user = user;
+      state.loadingRecords = true;
+      state.loadError = '';
+      showApp(user);
+      setBusy(false);
+      byId('login-button').textContent = '🚀 Secure Login';
+      setCloudStatus(false, 'Loading ledger…');
+      byId('footer-sync').textContent = 'Loading latest ledger…';
+      refreshRecords().catch(function (loadError) {
+        if (!state.user) return;
+        state.loadingRecords = false;
+        state.loadError = 'The latest ledger could not be loaded. Check your connection and retry.';
+        setCloudStatus(false, 'Ledger unavailable');
+        byId('footer-sync').textContent = 'Ledger load failed: ' + loadError.message;
+        render();
+        toast('You are signed in, but the latest ledger could not be loaded: ' + loadError.message, 'error');
+      });
     } catch (error) {
-    sessionStorage.removeItem('broker-ledger-session');
-    state.user = null;
-    state.loadingRecords = false;
-    state.loadError = '';
-    showAuth(error.message);
-    } finally {
-    byId('login-button').textContent = 'Secure Login';
-    setBusy(false);
+      sessionStorage.removeItem('broker-ledger-session');
+      state.user = null;
+      state.loadingRecords = false;
+      state.loadError = '';
+      showAuth(error.message);
+      setBusy(false);
+      byId('login-button').textContent = '🚀 Secure Login';
     }
   }
   async function logout() {
@@ -969,24 +1481,106 @@
     byId('sidebar-scrim').classList.toggle('visible', open);
     document.body.classList.toggle('sidebar-open', open);
   }
-  function togglePasswordVisibility() {
+  function selectLoginUser(username) {
+    const selected = String(username || 'Admin').trim();
+    const isRudra = selected.toLowerCase() === 'rudra';
+    const input = byId('login-username');
+    if (input) input.value = isRudra ? 'Rudra' : 'Admin';
+    const btnAdmin = byId('user-btn-admin');
+    const btnRudra = byId('user-btn-rudra');
+    if (btnAdmin) btnAdmin.classList.toggle('active', !isRudra);
+    if (btnRudra) btnRudra.classList.toggle('active', isRudra);
+    const pwdInput = byId('login-password');
+    if (pwdInput) {
+      pwdInput.placeholder = isRudra ? 'Enter password for Rudra' : 'Enter password for Admin';
+    }
+  }
+  function togglePasswordVisibility(e) {
+    if (e) {
+      if (typeof e.preventDefault === 'function') e.preventDefault();
+      if (typeof e.stopPropagation === 'function') e.stopPropagation();
+    }
     const input = byId('login-password');
     const button = byId('toggle-password');
-    const visible = input.type === 'password';
-    input.type = visible ? 'text' : 'password';
-    button.textContent = visible ? 'Hide' : 'Show';
-    button.setAttribute('aria-label', visible ? 'Hide password' : 'Show password');
-    button.setAttribute('aria-pressed', String(visible));
+    if (!input) return;
+    const isPassword = input.type === 'password';
+    input.type = isPassword ? 'text' : 'password';
+    if (button) {
+      button.textContent = isPassword ? '🙈' : '👁️';
+      button.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
+      button.setAttribute('aria-pressed', String(isPassword));
+    }
   }
+  function clearShipmentInfo() {
+    const form = byId('shipment-form');
+    if (!form) return;
+    ['transportName', 'date', 'lrNo', 'truckNo', 'from', 'to'].forEach(function (name) {
+      if (form.elements[name]) form.elements[name].value = '';
+    });
+    toast('Shipment information has been reset.', 'info');
+  }
+
+  function clearPaymentDetails() {
+    const form = byId('shipment-form');
+    if (!form) return;
+    const paymentFields = [
+      'freight', 'tM', 'unloadingDate', 'codToPay', 'extraAmount',
+      'pmPaDate', 'pM', 'advance', 'date1', 'advance2', 'date2', 'advance3', 'date3'
+    ];
+    paymentFields.forEach(function (name) {
+      if (form.elements[name]) {
+        form.elements[name].value = '';
+      }
+    });
+    if (form.elements.toPayStatus) {
+      form.elements.toPayStatus.value = 'TOBILLED';
+    }
+    updateFormCalculations();
+    toast('Payment details have been reset.', 'info');
+  }
+
+  function clearAdvancePayments() {
+    const form = byId('shipment-form');
+    if (!form) return;
+    ['advance', 'date1', 'advance2', 'date2', 'advance3', 'date3'].forEach(function (name) {
+      if (form.elements[name]) form.elements[name].value = '';
+    });
+    updateFormCalculations();
+    toast('Advance payments have been reset.', 'info');
+  }
+
+  function clearBankPodDetails() {
+    const form = byId('shipment-form');
+    if (!form) return;
+    ['accountNo', 'ifscCode', 'bank', 'podReceivedDate', 'balanceDate', 'podAmountStatus', 'remarks'].forEach(function (name) {
+      if (form.elements[name]) form.elements[name].value = '';
+    });
+    toast('Bank & POD details have been reset.', 'info');
+  }
+
   function bindEvents() {
     byId('login-form').addEventListener('submit', handleLogin);
     byId('toggle-password').addEventListener('click', togglePasswordVisibility);
+    const userBtnAdmin = byId('user-btn-admin');
+    if (userBtnAdmin) {
+      userBtnAdmin.addEventListener('click', function () { selectLoginUser('Admin'); });
+      userBtnAdmin.addEventListener('pointerdown', function () { selectLoginUser('Admin'); });
+    }
+    const userBtnRudra = byId('user-btn-rudra');
+    if (userBtnRudra) {
+      userBtnRudra.addEventListener('click', function () { selectLoginUser('Rudra'); });
+      userBtnRudra.addEventListener('pointerdown', function () { selectLoginUser('Rudra'); });
+    }
     byId('logout-button').addEventListener('click', logout);
     byId('manual-sync-button').addEventListener('click', function () {
+      const btn = this;
+      btn.textContent = '↻ Syncing…';
       refreshRecords().catch(function (error) {
         setCloudStatus(false, 'Offline — last data may be stale');
         byId('footer-sync').textContent = 'Sync failed: ' + error.message;
         toast(error.message, 'error');
+      }).finally(function () {
+        btn.textContent = '↻ Sync';
       });
     });
     byId('add-shipment-top').addEventListener('click', function () { openShipmentDialog('add'); });
@@ -998,6 +1592,68 @@
     byId('shipment-form').addEventListener('input', updateFormCalculations);
     byId('shipment-form').addEventListener('change', updateFormCalculations);
     byId('shipment-form').addEventListener('submit', saveShipment);
+
+    function bindSectionReset(btnId, resetFn, sectionName) {
+      const btn = byId(btnId);
+      if (!btn) return;
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        if (state.formMode === 'view') return;
+        const msg = state.formMode === 'edit'
+          ? 'Reset ' + sectionName + ' for this shipment? Any unsaved changes in this section will be cleared.'
+          : 'Are you sure you want to clear ' + sectionName + '?';
+        if (!window.confirm(msg)) return;
+        resetFn();
+      });
+    }
+
+    bindSectionReset('clear-shipment-info', clearShipmentInfo, 'shipment information');
+    bindSectionReset('clear-payment-details', clearPaymentDetails, 'payment details');
+    bindSectionReset('clear-advance-payments', clearAdvancePayments, 'advance payments');
+    bindSectionReset('clear-bank-pod-details', clearBankPodDetails, 'bank & POD details');
+
+    const clearAllBtn = byId('clear-all-dialog');
+    if (clearAllBtn) {
+      clearAllBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        if (state.formMode === 'view') return;
+        const confirmed = window.confirm('Are you sure you want to clear all currently entered form fields? This will reset the form inputs without deleting any saved records.');
+        if (!confirmed) return;
+        setFormValues(null);
+        toast('Form fields have been reset.', 'info');
+      });
+    }
+
+    const fillPendingBtn = byId('btn-fill-pending');
+    if (fillPendingBtn) {
+      fillPendingBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        if (state.formMode === 'view') return;
+        const form = byId('shipment-form');
+        if (!form) return;
+        const record = formRecord();
+        const computed = CALC.calculateShipment(record);
+        if (computed.pendingAmount === null || computed.pendingAmount === undefined || isNaN(computed.pendingAmount)) {
+          toast('Pending Amount is not available. Please verify Freight and status.', 'error');
+          return;
+        }
+        const pendingPaise = Math.round(computed.pendingAmount * 100);
+        const formattedRupees = CALC.fromPaise(pendingPaise).toLocaleString('en-IN');
+        const target = form.elements.podAmountStatus;
+        if (target) {
+          const currentVal = target.value ? target.value.trim() : '';
+          if (currentVal && currentVal !== '0' && currentVal !== String(computed.pendingAmount) && currentVal !== formattedRupees) {
+            const ok = window.confirm('POD Balance Amount currently contains "' + currentVal + '". Do you want to overwrite it with calculated Pending Amount ₹' + formattedRupees + '?');
+            if (!ok) return;
+          }
+          target.value = String(computed.pendingAmount);
+          target.dispatchEvent(new Event('input', { bubbles: true }));
+          target.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        updateFormCalculations();
+        toast('Calculated Pending Amount (₹' + formattedRupees + ') copied to POD Balance Amount.', 'success');
+      });
+    }
 
     const sForm = byId('shipment-form');
     if (sForm) {
@@ -1038,11 +1694,17 @@
     byId('sidebar-close').addEventListener('click', function () { toggleSidebar(false); });
     byId('sidebar-scrim').addEventListener('click', function () { toggleSidebar(false); });
     document.querySelectorAll('.nav-tab').forEach(function (button) {
-    button.addEventListener('click', function () {
-      state.view = button.dataset.view;
-      toggleSidebar(false);
-      render();
-    });
+      button.addEventListener('click', function () {
+        document.querySelectorAll('.nav-tab').forEach(function (btn) {
+          btn.classList.toggle('active', btn === button);
+        });
+        if (button.dataset.view === 'sheet') {
+          state.sheetFilter = null;
+        }
+        state.view = button.dataset.view;
+        toggleSidebar(false);
+        render();
+      });
     });
     byId('view-container').addEventListener('input', function (event) {
     if (event.target.id !== 'ledger-search') return;
@@ -1069,8 +1731,28 @@
     const button = event.target.closest('[data-action]');
     if (!button) return;
     const action = button.dataset.action;
+    if (action === 'sheet-filter') {
+      const filterType = button.dataset.filterType;
+      const filterValue = button.dataset.filterValue;
+      const filterLabel = button.dataset.filterLabel || filterValue;
+      if (filterType && filterValue) {
+        state.sheetFilter = {
+          type: filterType,
+          value: filterValue,
+          label: filterLabel
+        };
+        state.view = 'sheet';
+        render();
+      }
+      return;
+    }
+    if (action === 'clear-sheet-filter') {
+      state.sheetFilter = null;
+      render();
+      return;
+    }
     if (action === 'add-shipment') openShipmentDialog('add');
-    if (action === 'go-sheet') { state.view = 'sheet'; render(); }
+    if (action === 'go-sheet') { state.sheetFilter = null; state.view = 'sheet'; render(); }
     if (action === 'go-ledger') { state.view = 'ledger'; render(); }
     if (action === 'sort') {
       const field = button.dataset.field;
@@ -1092,7 +1774,7 @@
     if (action === 'view') openShipmentDialog('view', button.dataset.id);
     if (action === 'edit') openShipmentDialog('edit', button.dataset.id);
     if (action === 'delete') deleteShipment(button.dataset.id);
-    if (action === 'export') exportWorkbook();
+    if (action === 'export') exportWorkbook(button);
     if (action === 'fullscreen') {
       const sheet = byId('sheet-wrap');
       if (sheet) sheet.classList.toggle('fullscreen');
@@ -1133,6 +1815,7 @@
   };
 
   bindEvents();
+  selectLoginUser('Admin');
   if (!window.BrokerApi.configured() && new URLSearchParams(location.search).get('preview') === '1') {
     state.preview = true;
     showApp({ username: 'Preview', name: 'Read-only preview', role: 'Employee' });
