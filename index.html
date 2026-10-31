@@ -133,24 +133,33 @@
       </header>
       <div id="form-error" class="notice notice-error" role="alert" hidden></div>
       <section class="form-section" aria-labelledby="shipment-info-title">
-        <h3 id="shipment-info-title" class="form-section-title"><span>📦 Shipment Information</span></h3>
+        <div class="form-section-header">
+          <h3 id="shipment-info-title" class="form-section-title"><span>📦 Shipment Information</span></h3>
+          <button id="clear-shipment-info" class="btn btn-secondary btn-sm btn-clear-section" type="button" title="Clear shipment information only">Clear Shipment Info</button>
+        </div>
         <div class="form-grid">
-          <label>Transport name <span class="required">*</span>
+          <label class="form-field">
+            <span class="field-label">Transport name <span class="required">*</span></span>
             <input name="transportName" list="transport-suggestions" maxlength="120" placeholder="Select or type transporter" required>
           </label>
-          <label>Shipment date <span class="required">*</span>
+          <label class="form-field">
+            <span class="field-label">Shipment date <span class="required">*</span></span>
             <input name="date" type="date" required>
           </label>
-          <label>LR No <span class="required">*</span>
+          <label class="form-field">
+            <span class="field-label">LR No <span class="required">*</span></span>
             <input name="lrNo" maxlength="60" placeholder="e.g. 207" required>
           </label>
-          <label>Truck No <span class="required">*</span>
+          <label class="form-field">
+            <span class="field-label">Truck No <span class="required">*</span></span>
             <input name="truckNo" list="truck-suggestions" maxlength="40" placeholder="e.g. AP39UD3564" style="text-transform: uppercase;" required>
           </label>
-          <label>From <span class="required">*</span>
+          <label class="form-field">
+            <span class="field-label">From <span class="required">*</span></span>
             <input name="from" list="from-suggestions" maxlength="100" placeholder="Origin city" style="text-transform: uppercase;" required>
           </label>
-          <label>To <span class="required">*</span>
+          <label class="form-field">
+            <span class="field-label">To <span class="required">*</span></span>
             <input name="to" list="to-suggestions" maxlength="100" placeholder="Destination city" style="text-transform: uppercase;" required>
           </label>
         </div>
@@ -158,10 +167,11 @@
       <section class="form-section" aria-labelledby="payment-info-title">
         <div class="form-section-header">
           <h3 id="payment-info-title" class="form-section-title"><span>💰 Payment Details</span></h3>
-          <button id="clear-payment-details" class="btn btn-secondary btn-sm btn-clear-payment" type="button" title="Clear payment-related fields only">Clear Payment Details</button>
+          <button id="clear-payment-details" class="btn btn-secondary btn-sm btn-clear-section" type="button" title="Clear payment-related fields only">Clear Payment Details</button>
         </div>
         <div class="form-grid">
-          <label class="form-span">ToPayStatus <span class="required">*</span>
+          <label class="form-field">
+            <span class="field-label">ToPayStatus <span class="required">*</span></span>
             <select name="toPayStatus" required>
               <option value="" selected disabled>Choose a status</option>
               <option value="TOBILLED">TOBILLED</option>
@@ -169,76 +179,99 @@
               <option value="F/TO-PAY">F/TO-PAY</option>
             </select>
           </label>
-          <label>FRIGHT (₹) <span class="required">*</span>
+          <label class="form-field">
+            <span class="field-label">FRIGHT (₹) <span class="required">*</span></span>
             <input name="freight" inputmode="decimal" placeholder="e.g. 60,000" required>
           </label>
-          <label>T/M (₹)
+          <label class="form-field">
+            <span class="field-label">T/M (₹)</span>
             <input name="tM" inputmode="decimal" placeholder="Optional">
           </label>
-          <label>Unloading Date
+          <label class="form-field">
+            <span class="field-label">Unloading Date</span>
             <input name="unloadingDate" type="date">
           </label>
-          <label>COD / To-Pay (₹ or note)
-            <input name="codToPay" maxlength="80" placeholder="Amount or text placeholder" aria-describedby="cod-help">
-            <small id="cod-help" class="field-help">For A/TO-PAY and F/TO-PAY this is calculated as FRIGHT − T/M − advances. TOBILLED notes are preserved.</small>
-          </label>
-          <label>Extra Amount (₹)
+          <label class="form-field">
+            <span class="field-label">Extra Amount (₹)</span>
             <input name="extraAmount" inputmode="decimal" placeholder="Optional">
           </label>
-          <label>PM/PA Date
+          <label class="form-field">
+            <span class="field-label">Payment Mamul / P/M (₹)</span>
+            <input name="pM" inputmode="decimal" placeholder="Optional">
+          </label>
+          <label class="form-field">
+            <span class="field-label">PM/PA Date</span>
             <input name="pmPaDate" type="date">
           </label>
-          <label>Payment Mamul / P/M (₹)
-            <input name="pM" inputmode="decimal" placeholder="Optional">
+          <label class="form-field form-span-2">
+            <span class="field-label">COD / To-Pay (₹ or note)</span>
+            <input name="codToPay" maxlength="80" placeholder="Amount or text placeholder" aria-describedby="cod-help">
+            <small id="cod-help" class="field-help">For A/TO-PAY and F/TO-PAY this is calculated as FRIGHT − T/M − advances. TOBILLED notes are preserved.</small>
           </label>
         </div>
 
         <!-- Advance Payments: 3 Consistent Rows (Amount Left, Date Right) -->
         <div class="advance-payments-section">
           <div class="advance-section-heading">
-            <h4>Advance Payments</h4>
+            <div class="advance-heading-info">
+              <h4 class="advance-title"><span>💳 Advance Payments</span></h4>
+              <span class="advance-subtitle">Track up to 3 installments (Amount &amp; Given Date)</span>
+            </div>
+            <button id="clear-advance-payments" class="btn btn-secondary btn-sm btn-clear-section" type="button" title="Clear advance payments only">Clear Advance Payments</button>
           </div>
           <div class="advance-rows-wrap">
             <div class="advance-row-card">
-              <div class="advance-row-label">
-                <span class="advance-pill">1</span>
-                <strong>Advance 1</strong>
+              <div class="advance-row-header">
+                <span class="advance-pill-badge">
+                  <span class="advance-pill">1</span>
+                  <strong class="advance-pill-label">Advance 1</strong>
+                </span>
               </div>
               <div class="advance-row-inputs">
-                <label>Advance Amount (₹)
+                <label class="form-field">
+                  <span class="field-label">Advance Amount (₹)</span>
                   <input name="advance" inputmode="decimal" placeholder="Enter amount">
                 </label>
-                <label>1st Advance Given Date
+                <label class="form-field">
+                  <span class="field-label">1st Advance Given Date</span>
                   <input name="date1" type="date">
                 </label>
               </div>
             </div>
 
             <div class="advance-row-card">
-              <div class="advance-row-label">
-                <span class="advance-pill">2</span>
-                <strong>Advance 2</strong>
+              <div class="advance-row-header">
+                <span class="advance-pill-badge">
+                  <span class="advance-pill">2</span>
+                  <strong class="advance-pill-label">Advance 2</strong>
+                </span>
               </div>
               <div class="advance-row-inputs">
-                <label>Advance Amount (₹)
+                <label class="form-field">
+                  <span class="field-label">Advance Amount (₹)</span>
                   <input name="advance2" inputmode="decimal" placeholder="Enter amount">
                 </label>
-                <label>2nd Advance Given Date
+                <label class="form-field">
+                  <span class="field-label">2nd Advance Given Date</span>
                   <input name="date2" type="date">
                 </label>
               </div>
             </div>
 
             <div class="advance-row-card">
-              <div class="advance-row-label">
-                <span class="advance-pill">3</span>
-                <strong>Advance 3</strong>
+              <div class="advance-row-header">
+                <span class="advance-pill-badge">
+                  <span class="advance-pill">3</span>
+                  <strong class="advance-pill-label">Advance 3</strong>
+                </span>
               </div>
               <div class="advance-row-inputs">
-                <label>Advance Amount (₹)
+                <label class="form-field">
+                  <span class="field-label">Advance Amount (₹)</span>
                   <input name="advance3" inputmode="decimal" placeholder="Enter amount">
                 </label>
-                <label>3rd Advance Given Date
+                <label class="form-field">
+                  <span class="field-label">3rd Advance Given Date</span>
                   <input name="date3" type="date">
                 </label>
               </div>
@@ -247,27 +280,37 @@
         </div>
       </section>
       <section class="form-section" aria-labelledby="bank-pod-title">
-        <h3 id="bank-pod-title" class="form-section-title"><span>🏦 Bank &amp; POD Details</span></h3>
+        <div class="form-section-header">
+          <h3 id="bank-pod-title" class="form-section-title"><span>🏦 Bank &amp; POD Details</span></h3>
+          <button id="clear-bank-pod-details" class="btn btn-secondary btn-sm btn-clear-section" type="button" title="Clear bank and POD details only">Clear Bank &amp; POD Details</button>
+        </div>
         <div class="form-grid">
-          <label>Account No
+          <label class="form-field">
+            <span class="field-label">Account No</span>
             <input name="accountNo" list="account-suggestions" maxlength="40" autocomplete="off" placeholder="Bank account number">
           </label>
-          <label>IFSC
+          <label class="form-field">
+            <span class="field-label">IFSC</span>
             <input name="ifscCode" list="ifsc-suggestions" maxlength="20" autocapitalize="characters" placeholder="e.g. SBIN0010659" style="text-transform: uppercase;">
           </label>
-          <label>Bank
+          <label class="form-field">
+            <span class="field-label">Bank</span>
             <input name="bank" list="bank-suggestions" maxlength="100" placeholder="Bank name / payment mode">
           </label>
-          <label>POD received date
+          <label class="form-field">
+            <span class="field-label">POD received date</span>
             <input name="podReceivedDate" type="date">
           </label>
-          <label>Balance Date
+          <label class="form-field">
+            <span class="field-label">Balance Date</span>
             <input name="balanceDate" type="date">
           </label>
-          <label>POD Balance Amount / Status
+          <label class="form-field">
+            <span class="field-label">POD Balance Amount / Status</span>
             <input name="podAmountStatus" maxlength="100" placeholder="Status or note">
           </label>
-          <label class="form-span">Remarks
+          <label class="form-field form-span">
+            <span class="field-label">Remarks</span>
             <input name="remarks" maxlength="500" placeholder="Optional notes">
           </label>
         </div>
@@ -278,8 +321,14 @@
           <button id="btn-fill-pending" class="btn btn-sm btn-fill-pending" type="button" title="Copy calculated Pending Amount to POD Balance Amount">⚡ Fill Pending Amount</button>
         </div>
         <div class="calculation-results">
-          <label class="calculation-result calculation-result-billed">Pending Amount: Tobilled (₹)<input name="pendingTobilled" readonly class="calculated-field" aria-live="polite"></label>
-          <label class="calculation-result calculation-result-final">Pending Amount (₹)<input name="pendingAmount" readonly class="calculated-field" aria-live="polite"></label>
+          <label class="calculation-result calculation-result-billed">
+            <span class="field-label">Pending Amount: Tobilled (₹)</span>
+            <input name="pendingTobilled" readonly class="calculated-field" aria-live="polite">
+          </label>
+          <label class="calculation-result calculation-result-final">
+            <span class="field-label">Pending Amount (₹)</span>
+            <input name="pendingAmount" readonly class="calculated-field" aria-live="polite">
+          </label>
         </div>
         <div class="calculation-hint">Balances update from the source amounts and status. COD / To-Pay text placeholders are preserved.</div>
       </section>

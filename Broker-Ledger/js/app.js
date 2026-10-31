@@ -916,7 +916,6 @@
     const saveBtn = byId('save-shipment');
     const clearAllBtn = byId('clear-all-dialog');
     const fillPendingBtn = byId('btn-fill-pending');
-    const clearPaymentBtn = byId('clear-payment-details');
     if (saveBtn) {
       saveBtn.hidden = isView;
       saveBtn.disabled = false;
@@ -924,7 +923,14 @@
     }
     if (clearAllBtn) clearAllBtn.hidden = isView;
     if (fillPendingBtn) fillPendingBtn.hidden = isView;
-    if (clearPaymentBtn) clearPaymentBtn.hidden = isView;
+    [
+      byId('clear-shipment-info'),
+      byId('clear-payment-details'),
+      byId('clear-advance-payments'),
+      byId('clear-bank-pod-details')
+    ].forEach(function (btn) {
+      if (btn) btn.hidden = isView;
+    });
     byId('cancel-dialog').textContent = isView ? 'Close' : 'Cancel';
     byId('shipment-dialog-title').textContent = isView ? 'Shipment Details' : (existing ? 'Edit Shipment' : 'Add Shipment');
     byId('form-error').hidden = true;
@@ -1505,6 +1511,15 @@
       button.setAttribute('aria-pressed', String(isPassword));
     }
   }
+  function clearShipmentInfo() {
+    const form = byId('shipment-form');
+    if (!form) return;
+    ['transportName', 'date', 'lrNo', 'truckNo', 'from', 'to'].forEach(function (name) {
+      if (form.elements[name]) form.elements[name].value = '';
+    });
+    toast('Shipment information has been reset.', 'info');
+  }
+
   function clearPaymentDetails() {
     const form = byId('shipment-form');
     if (!form) return;
@@ -1522,6 +1537,25 @@
     }
     updateFormCalculations();
     toast('Payment details have been reset.', 'info');
+  }
+
+  function clearAdvancePayments() {
+    const form = byId('shipment-form');
+    if (!form) return;
+    ['advance', 'date1', 'advance2', 'date2', 'advance3', 'date3'].forEach(function (name) {
+      if (form.elements[name]) form.elements[name].value = '';
+    });
+    updateFormCalculations();
+    toast('Advance payments have been reset.', 'info');
+  }
+
+  function clearBankPodDetails() {
+    const form = byId('shipment-form');
+    if (!form) return;
+    ['accountNo', 'ifscCode', 'bank', 'podReceivedDate', 'balanceDate', 'podAmountStatus', 'remarks'].forEach(function (name) {
+      if (form.elements[name]) form.elements[name].value = '';
+    });
+    toast('Bank & POD details have been reset.', 'info');
   }
 
   function bindEvents() {
@@ -1558,20 +1592,25 @@
     byId('shipment-form').addEventListener('input', updateFormCalculations);
     byId('shipment-form').addEventListener('change', updateFormCalculations);
     byId('shipment-form').addEventListener('submit', saveShipment);
-    const clearPaymentBtn = byId('clear-payment-details');
-    if (clearPaymentBtn) {
-      clearPaymentBtn.addEventListener('click', function (e) {
+
+    function bindSectionReset(btnId, resetFn, sectionName) {
+      const btn = byId(btnId);
+      if (!btn) return;
+      btn.addEventListener('click', function (e) {
         e.preventDefault();
         if (state.formMode === 'view') return;
-        const isEditing = state.formMode === 'edit';
-        const msg = isEditing
-          ? 'Reset payment details for this shipment? Any unsaved changes to payment fields will be cleared.'
-          : 'Are you sure you want to clear payment details?';
-        const confirmed = window.confirm(msg);
-        if (!confirmed) return;
-        clearPaymentDetails();
+        const msg = state.formMode === 'edit'
+          ? 'Reset ' + sectionName + ' for this shipment? Any unsaved changes in this section will be cleared.'
+          : 'Are you sure you want to clear ' + sectionName + '?';
+        if (!window.confirm(msg)) return;
+        resetFn();
       });
     }
+
+    bindSectionReset('clear-shipment-info', clearShipmentInfo, 'shipment information');
+    bindSectionReset('clear-payment-details', clearPaymentDetails, 'payment details');
+    bindSectionReset('clear-advance-payments', clearAdvancePayments, 'advance payments');
+    bindSectionReset('clear-bank-pod-details', clearBankPodDetails, 'bank & POD details');
 
     const clearAllBtn = byId('clear-all-dialog');
     if (clearAllBtn) {

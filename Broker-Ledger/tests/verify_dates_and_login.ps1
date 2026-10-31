@@ -17,7 +17,15 @@ $t11 = $appJs.Contains("showApp(user);") -and $appJs.Contains("setBusy(false);")
 $t12 = $css.Contains("pointer-events: auto;") -and $css.Contains("z-index: 10;")
 $t13 = $css.Contains(".user-switch-card.active") -and $css.Contains("background: #eff6ff;")
 $t14 = $html.Contains("advance-payments-section") -and $html.Contains("advance-row-card")
-$t15 = $html.Contains("clear-payment-details") -and $appJs.Contains("clearPaymentDetails") -and !($html.Contains("field-clear-btn"))
+$t15 = $html.Contains("clear-payment-details") -and `
+       $html.Contains("clear-shipment-info") -and `
+       $html.Contains("clear-advance-payments") -and `
+       $html.Contains("clear-bank-pod-details") -and `
+       $appJs.Contains("clearPaymentDetails") -and `
+       $appJs.Contains("clearShipmentInfo") -and `
+       $appJs.Contains("clearAdvancePayments") -and `
+       $appJs.Contains("clearBankPodDetails") -and `
+       !($html.Contains("field-clear-btn"))
 $t16 = $html.Contains("btn-fill-pending") -and $appJs.Contains("btn-fill-pending")
 $t17 = $html.Contains("clear-all-dialog") -and $appJs.Contains("clear-all-dialog")
 $t18 = $appJs.Contains("Add & Submit Shipment") -and $appJs.Contains("Update Shipment")
@@ -37,7 +45,7 @@ $results = @(
   @{ Name = "12. CSS: auth-password-control button has pointer-events and z-index"; Ok = $t12 },
   @{ Name = "13. CSS: user-switch-card active has distinct border and background"; Ok = $t13 },
   @{ Name = "14. UI: Advance payments grouped into compact consistent rows"; Ok = $t14 },
-  @{ Name = "15. UI: Clear Payment Details button present and individual clear buttons removed"; Ok = $t15 },
+  @{ Name = "15. UI: All 4 section clear buttons present and individual clear buttons removed"; Ok = $t15 },
   @{ Name = "16. UI: Fill Pending Amount button in live calculation summary"; Ok = $t16 },
   @{ Name = "17. UI: Clear All button with confirmation"; Ok = $t17 },
   @{ Name = "18. UI: Dynamic Add & Submit / Update Shipment button labels"; Ok = $t18 }
