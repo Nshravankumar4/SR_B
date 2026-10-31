@@ -86,6 +86,13 @@
   }
   function setAuthMessage(text, isError) {
     const box = byId('auth-message');
+    if (!box) return;
+    if (!text) {
+      box.hidden = true;
+      box.textContent = '';
+      return;
+    }
+    box.hidden = false;
     box.textContent = text;
     box.className = 'notice ' + (isError ? 'notice-error' : 'notice-info');
   }
@@ -97,6 +104,8 @@
     byId('app-shell').hidden = true;
     byId('auth-view').hidden = false;
     if (message) setAuthMessage(message, true);
+    else setAuthMessage('', false);
+    selectLoginUser('Admin');
   }
   function showApp(user) {
     state.user = user;
@@ -392,32 +401,28 @@
   async function initializeSession() {
     const existing = getCurrentSession();
     if (!existing || !existing.token) {
-    showAuth();
-    return;
+      showAuth();
+      return;
     }
-    try {
-    const versionResult = await window.BrokerApi.version();
-    const serverVersion = Number(versionResult.version);
-    if (!Number.isFinite(serverVersion)) throw new Error('The backend did not return a valid data version.');
-    state.version = serverVersion;
     state.user = existing;
     state.loadingRecords = true;
     state.loadError = '';
     showApp(existing);
     setCloudStatus(false, 'Loading ledger…');
     byId('footer-sync').textContent = 'Loading latest ledger…';
-    await refreshRecords();
+    try {
+      await refreshRecords();
     } catch (error) {
-    if (state.user) {
-      state.loadingRecords = false;
-      state.loadError = 'The latest ledger could not be loaded. Check your connection and retry.';
-      setCloudStatus(false, 'Ledger unavailable');
-      byId('footer-sync').textContent = 'Ledger load failed: ' + error.message;
-      render();
-      toast('You are signed in, but the latest ledger could not be loaded: ' + error.message, 'error');
-      return;
-    }
-    showAuth('Your session could not be verified: ' + error.message);
+      if (state.user) {
+        state.loadingRecords = false;
+        state.loadError = 'The latest ledger could not be loaded. Check your connection and retry.';
+        setCloudStatus(false, 'Ledger unavailable');
+        byId('footer-sync').textContent = 'Ledger load failed: ' + error.message;
+        render();
+        toast('You are signed in, but the latest ledger could not be loaded: ' + error.message, 'error');
+        return;
+      }
+      showAuth('Your session could not be verified: ' + error.message);
     }
   }
   function updateAutocompleteSuggestions() {
@@ -691,42 +696,47 @@
       return;
     }
     closeShipmentDialog();
-    try {
-      await refreshRecords();
+    if (response && response.record) {
+      const saved = withDerivedValues(response.record);
+      if (isEditing) {
+        const idx = state.records.findIndex(function (item) { return item.id === saved.id; });
+        if (idx >= 0) state.records[idx] = saved;
+      } else {
+        state.records.push(saved);
+      }
+      render();
       updateAutocompleteSuggestions();
-      toast((isEditing ? 'Shipment updated.' : 'Shipment saved.') + (response.warning ? ' ' + response.warning : ''), response.warning ? 'error' : 'success');
-    } catch (error) {
+    }
+    toast((isEditing ? 'Shipment updated.' : 'Shipment saved.') + (response.warning ? ' ' + response.warning : ''), response.warning ? 'error' : 'success');
+    refreshRecords().catch(function (error) {
       setCloudStatus(false, 'Offline — last data may be stale');
       byId('footer-sync').textContent = 'Save completed, but refresh failed; displayed data may be outdated.';
-      toast((isEditing ? 'Shipment updated.' : 'Shipment saved.') + ' Refresh failed: ' + error.message, 'error');
-    } finally {
-      setBusy(false);
-      if (saveBtn) {
-        saveBtn.disabled = false;
-        saveBtn.textContent = 'Save Shipment';
-      }
+    });
+    setBusy(false);
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save Shipment';
     }
   }
   async function deleteShipment(id) {
     if (!state.user || state.user.role !== 'Admin') {
-    toast('Only an administrator can delete a shipment.', 'error');
-    return;
+      toast('Only an administrator can delete a shipment.', 'error');
+      return;
     }
     const record = state.records.find(function (item) { return item.id === id; });
     if (!record || !window.confirm('Delete shipment LR No ' + record.lrNo + '? This cannot be undone.')) return;
+    const prevRecords = state.records.slice();
+    state.records = state.records.filter(function (item) { return item.id !== id; });
+    render();
     let response;
     try {
-    response = await window.BrokerApi.remove(id);
+      response = await window.BrokerApi.remove(id);
+      toast('Shipment deleted.' + (response.warning ? ' ' + response.warning : ''), response.warning ? 'error' : 'success');
+      refreshRecords().catch(function () {});
     } catch (error) {
-    toast(error.message, 'error');
-    return;
-    }
-    try {
-    await refreshRecords();
-    toast('Shipment deleted.' + (response.warning ? ' ' + response.warning : ''), response.warning ? 'error' : 'success');
-    } catch (error) {
-    setCloudStatus(false, 'Offline — last data may be stale');
-    toast('Shipment was deleted, but refresh failed: ' + error.message, 'error');
+      state.records = prevRecords;
+      render();
+      toast(error.message, 'error');
     }
   }
   function dateForExport(value) {
@@ -950,7 +960,7 @@
     state.loadError = '';
     showAuth(error.message);
     } finally {
-    byId('login-button').textContent = 'Secure Login';
+    byId('login-button').textContent = '🚀 Secure Login';
     setBusy(false);
     }
   }
@@ -969,24 +979,55 @@
     byId('sidebar-scrim').classList.toggle('visible', open);
     document.body.classList.toggle('sidebar-open', open);
   }
+  function selectLoginUser(username) {
+    const selected = String(username || 'Admin').trim();
+    const isRudra = selected.toLowerCase() === 'rudra';
+    const input = byId('login-username');
+    if (input) input.value = isRudra ? 'Rudra' : 'Admin';
+    const btnAdmin = byId('user-btn-admin');
+    const btnRudra = byId('user-btn-rudra');
+    if (btnAdmin) btnAdmin.classList.toggle('active', !isRudra);
+    if (btnRudra) btnRudra.classList.toggle('active', isRudra);
+    const pwdInput = byId('login-password');
+    if (pwdInput) {
+      pwdInput.placeholder = isRudra ? 'Enter password for Rudra' : 'Enter password for Admin';
+    }
+  }
   function togglePasswordVisibility() {
     const input = byId('login-password');
     const button = byId('toggle-password');
-    const visible = input.type === 'password';
-    input.type = visible ? 'text' : 'password';
-    button.textContent = visible ? 'Hide' : 'Show';
-    button.setAttribute('aria-label', visible ? 'Hide password' : 'Show password');
-    button.setAttribute('aria-pressed', String(visible));
+    if (!input) return;
+    const isPassword = input.type === 'password';
+    input.type = isPassword ? 'text' : 'password';
+    if (button) {
+      button.textContent = isPassword ? '🙈' : '👁️';
+      button.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
+      button.setAttribute('aria-pressed', String(isPassword));
+    }
   }
   function bindEvents() {
     byId('login-form').addEventListener('submit', handleLogin);
     byId('toggle-password').addEventListener('click', togglePasswordVisibility);
+    const userBtnAdmin = byId('user-btn-admin');
+    if (userBtnAdmin) {
+      userBtnAdmin.addEventListener('click', function () { selectLoginUser('Admin'); });
+      userBtnAdmin.addEventListener('pointerdown', function () { selectLoginUser('Admin'); });
+    }
+    const userBtnRudra = byId('user-btn-rudra');
+    if (userBtnRudra) {
+      userBtnRudra.addEventListener('click', function () { selectLoginUser('Rudra'); });
+      userBtnRudra.addEventListener('pointerdown', function () { selectLoginUser('Rudra'); });
+    }
     byId('logout-button').addEventListener('click', logout);
     byId('manual-sync-button').addEventListener('click', function () {
+      const btn = this;
+      btn.textContent = '↻ Syncing…';
       refreshRecords().catch(function (error) {
         setCloudStatus(false, 'Offline — last data may be stale');
         byId('footer-sync').textContent = 'Sync failed: ' + error.message;
         toast(error.message, 'error');
+      }).finally(function () {
+        btn.textContent = '↻ Sync';
       });
     });
     byId('add-shipment-top').addEventListener('click', function () { openShipmentDialog('add'); });
@@ -1038,11 +1079,14 @@
     byId('sidebar-close').addEventListener('click', function () { toggleSidebar(false); });
     byId('sidebar-scrim').addEventListener('click', function () { toggleSidebar(false); });
     document.querySelectorAll('.nav-tab').forEach(function (button) {
-    button.addEventListener('click', function () {
-      state.view = button.dataset.view;
-      toggleSidebar(false);
-      render();
-    });
+      button.addEventListener('click', function () {
+        document.querySelectorAll('.nav-tab').forEach(function (btn) {
+          btn.classList.toggle('active', btn === button);
+        });
+        state.view = button.dataset.view;
+        toggleSidebar(false);
+        render();
+      });
     });
     byId('view-container').addEventListener('input', function (event) {
     if (event.target.id !== 'ledger-search') return;
@@ -1133,6 +1177,7 @@
   };
 
   bindEvents();
+  selectLoginUser('Admin');
   if (!window.BrokerApi.configured() && new URLSearchParams(location.search).get('preview') === '1') {
     state.preview = true;
     showApp({ username: 'Preview', name: 'Read-only preview', role: 'Employee' });

@@ -24,16 +24,38 @@
         <h1>SR Brokerage Ledger</h1>
         <p>Sign in to manage shipment and settlement records.</p>
       </header>
-      <div id="auth-message" class="notice notice-info" role="status" aria-live="polite"></div>
+      <div id="auth-message" class="notice notice-info" role="status" aria-live="polite" hidden></div>
       <form id="login-form" novalidate>
-        <label for="login-username">Account username</label>
-        <input id="login-username" name="username" autocomplete="username" required>
-        <label for="login-password">Password</label>
-        <div class="auth-password-control">
-          <input id="login-password" name="password" type="password" autocomplete="current-password" required>
-          <button id="toggle-password" type="button" aria-label="Show password" aria-pressed="false">Show</button>
+        <div class="user-switch-container">
+          <label class="user-switch-label">SELECT USER ACCOUNT</label>
+          <div class="user-switch-group">
+            <button type="button" id="user-btn-admin" class="user-switch-card active" aria-label="Select Admin Account">
+              <div class="user-switch-badge">👑</div>
+              <div class="user-switch-info">
+                <span class="user-switch-name">ADMIN</span>
+                <span class="user-switch-role">Administrator</span>
+              </div>
+            </button>
+            <button type="button" id="user-btn-rudra" class="user-switch-card" aria-label="Select Rudra Account">
+              <div class="user-switch-badge">👤</div>
+              <div class="user-switch-info">
+                <span class="user-switch-name">RUDRA</span>
+                <span class="user-switch-role">User</span>
+              </div>
+            </button>
+          </div>
+          <input type="hidden" id="login-username" name="username" value="Admin">
         </div>
-        <button id="login-button" class="btn btn-primary btn-block" type="submit">Secure Login</button>
+
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+          <label for="login-password" class="login-password-label">🔑 Password</label>
+          <div class="auth-password-control">
+            <input id="login-password" name="password" type="password" autocomplete="current-password" placeholder="Enter password for Admin" required>
+            <button id="toggle-password" type="button" aria-label="Show password" aria-pressed="false" title="Show/Hide Password">👁️</button>
+          </div>
+        </div>
+
+        <button id="login-button" class="btn btn-primary btn-block" type="submit">🚀 Secure Login</button>
       </form>
       <div class="auth-developer-credit">Developed by <strong>Shravan Kumar</strong><br>Enterprise Freight &amp; Fleet Management</div>
     </div>
