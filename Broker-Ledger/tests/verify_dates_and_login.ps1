@@ -3,11 +3,11 @@ $appJs = Get-Content -Raw "Broker-Ledger/js/app.js"
 $codeGs = Get-Content -Raw "Broker-Ledger/backend/Code.gs"
 $css = Get-Content -Raw "Broker-Ledger/css/styles.css"
 
-$t1 = $html -match '1st Advance Given Date<input name="date1"'
-$t2 = $html -match '2nd Advance Given Date<input name="date2"'
-$t3 = $html -match '3rd Advance Given Date<input name="date3"'
-$t4 = $html -match 'Unloading Date<input name="unloadingDate"'
-$t5 = $html -match 'Balance Date<input name="balanceDate"'
+$t1 = ($html -match '1st Advance Given Date' -and $html -match 'name="date1"')
+$t2 = ($html -match '2nd Advance Given Date' -and $html -match 'name="date2"')
+$t3 = ($html -match '3rd Advance Given Date' -and $html -match 'name="date3"')
+$t4 = ($html -match 'Unloading Date' -and $html -match 'name="unloadingDate"')
+$t5 = ($html -match 'Balance Date' -and $html -match 'name="balanceDate"')
 $t6 = $codeGs.Contains("'date1', 'advance2', 'date2', 'advance3', 'date3',") -and $codeGs.Contains("'unloadingDate', 'podReceivedDate', 'balanceDate'")
 $t7 = $codeGs.Contains("action === 'ping' || action === 'login' || action === 'version'")
 $t8 = $appJs.Contains("'date1', 'advance2', 'date2', 'advance3', 'date3',") -and $appJs.Contains("'unloadingDate', 'podReceivedDate', 'balanceDate'")
@@ -16,6 +16,11 @@ $t10 = !($appJs -match "record\.unloadingDate\s*=\s*record\.date1")
 $t11 = $appJs.Contains("showApp(user);") -and $appJs.Contains("setBusy(false);")
 $t12 = $css.Contains("pointer-events: auto;") -and $css.Contains("z-index: 10;")
 $t13 = $css.Contains(".user-switch-card.active") -and $css.Contains("background: #eff6ff;")
+$t14 = $html.Contains("advance-cards-container") -and $html.Contains("advance-card")
+$t15 = $html.Contains("field-clear-btn") -and $appJs.Contains(".field-clear-btn")
+$t16 = $html.Contains("btn-fill-pending") -and $appJs.Contains("btn-fill-pending")
+$t17 = $html.Contains("clear-all-dialog") -and $appJs.Contains("clear-all-dialog")
+$t18 = $appJs.Contains("Add & Submit Shipment") -and $appJs.Contains("Update Shipment")
 
 $results = @(
   @{ Name = "1. Form: 1st Advance Given Date separate input"; Ok = $t1 },
@@ -30,7 +35,12 @@ $results = @(
   @{ Name = "10. Frontend: formRecord does not force unloadingDate to date1"; Ok = $t10 },
   @{ Name = "11. Frontend: handleLogin shows app immediately"; Ok = $t11 },
   @{ Name = "12. CSS: auth-password-control button has pointer-events and z-index"; Ok = $t12 },
-  @{ Name = "13. CSS: user-switch-card active has distinct border and background"; Ok = $t13 }
+  @{ Name = "13. CSS: user-switch-card active has distinct border and background"; Ok = $t13 },
+  @{ Name = "14. UI: Advance payments grouped into 3 separate visual cards"; Ok = $t14 },
+  @{ Name = "15. UI: Individual clear buttons for inputs"; Ok = $t15 },
+  @{ Name = "16. UI: Fill Pending Amount button in live calculation summary"; Ok = $t16 },
+  @{ Name = "17. UI: Clear All button with confirmation"; Ok = $t17 },
+  @{ Name = "18. UI: Dynamic Add & Submit / Update Shipment button labels"; Ok = $t18 }
 )
 
 $passed = 0

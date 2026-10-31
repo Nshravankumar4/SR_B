@@ -238,8 +238,153 @@ button:active:not(:disabled), .btn:active:not(:disabled), .nav-tab:active, .user
 .calculation-result { padding: .75rem; border: 1px solid #bbf7d0; border-radius: 8px; background: linear-gradient(135deg, #f0fdf4, #ecfdf5); }
 .calculation-result-final { border-color: #bfdbfe; background: linear-gradient(135deg, #eff6ff, #f0f9ff); }
 .calculation-results .calculated-field { color: #065f46; font-size: 1rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.input-clear-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+.input-clear-wrap input,
+.input-clear-wrap select {
+  width: 100%;
+  padding-right: 2.2rem !important;
+}
+.field-clear-btn {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  opacity: 0.65;
+  transition: all .15s ease;
+  z-index: 5;
+  user-select: none;
+}
+.field-clear-btn:hover {
+  opacity: 1;
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #dc2626;
+  transform: translateY(-50%) scale(1.1);
+}
+
+.advance-cards-container {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+.advance-card {
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.75rem 0.9rem;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.advance-card:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 4px 12px rgb(30 58 138 / 6%);
+}
+.advance-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 0.4rem;
+}
+.advance-card-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #1e3a8a;
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+.advance-card-header h4 {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 750;
+  color: #1e3a8a;
+}
+.advance-card-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+}
+.advance-card-fields label {
+  display: grid;
+  gap: 0.3rem;
+  color: #334155;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.calculation-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+}
+.calculation-header-row .form-section-title {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.btn-fill-pending {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #047857;
+  background: #ecfdf5;
+  border: 1.5px solid #a7f3d0;
+  border-radius: 6px;
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: all .15s ease;
+}
+.btn-fill-pending:hover {
+  background: #d1fae5;
+  border-color: #34d399;
+  color: #065f46;
+  transform: translateY(-1px);
+}
+.btn-clear-all {
+  color: #991b1b;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  font-weight: 600;
+  margin-right: auto;
+}
+.btn-clear-all:hover {
+  background: #fee2e2;
+  color: #7f1d1d;
+  border-color: #f87171;
+}
+
 .required { color: var(--danger); }
-.modal-actions { display: flex; justify-content: end; gap: .6rem; margin-top: 1rem; }
+.modal-actions { display: flex; align-items: center; justify-content: flex-end; gap: .6rem; margin-top: 1.15rem; flex-wrap: wrap; }
 .toast { position: fixed; right: 1rem; bottom: 1rem; z-index: 200; display: none; max-width: min(440px, calc(100vw - 2rem)); padding: .8rem 1rem; color: white; background: var(--navy); border-radius: 8px; box-shadow: var(--shadow); font-size: .86rem; }
 .toast.show { display: block; }
 .toast.error { background: var(--danger); }
@@ -250,6 +395,10 @@ button:active:not(:disabled), .btn:active:not(:disabled), .nav-tab:active, .user
   .app-content { padding: 1.2rem; }
   .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .form-grid .form-span { grid-column: span 2; }
+  .advance-cards-container { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .advance-card-fields { grid-template-columns: 1fr; }
 }
 @media (max-width: 700px) {
   .app-sidebar { position: fixed; left: 0; top: 0; bottom: 0; height: 100dvh; transform: translateX(-105%); transition: transform .22s ease; z-index: 60; width: min(290px, 86vw); }

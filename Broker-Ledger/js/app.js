@@ -670,11 +670,15 @@
     });
 
     const saveBtn = byId('save-shipment');
+    const clearAllBtn = byId('clear-all-dialog');
+    const fillPendingBtn = byId('btn-fill-pending');
     if (saveBtn) {
       saveBtn.hidden = isView;
       saveBtn.disabled = false;
-      saveBtn.textContent = 'Save Shipment';
+      saveBtn.textContent = existing ? 'Update Shipment' : 'Add & Submit Shipment';
     }
+    if (clearAllBtn) clearAllBtn.hidden = isView;
+    if (fillPendingBtn) fillPendingBtn.hidden = isView;
     byId('cancel-dialog').textContent = isView ? 'Close' : 'Cancel';
     byId('shipment-dialog-title').textContent = isView ? 'Shipment Details' : (existing ? 'Edit Shipment' : 'Add Shipment');
     byId('form-error').hidden = true;
@@ -746,7 +750,7 @@
       setBusy(false);
       if (saveBtn) {
         saveBtn.disabled = false;
-        saveBtn.textContent = 'Save Shipment';
+        saveBtn.textContent = isEditing ? 'Update Shipment' : 'Add & Submit Shipment';
       }
       return;
     }
@@ -771,7 +775,7 @@
     setBusy(false);
     if (saveBtn) {
       saveBtn.disabled = false;
-      saveBtn.textContent = 'Save Shipment';
+      saveBtn.textContent = isEditing ? 'Update Shipment' : 'Add & Submit Shipment';
     }
   }
   async function deleteShipment(id) {
@@ -809,12 +813,18 @@
     const parsed = CALC.parseMoney(value);
     return parsed.ok ? CALC.fromPaise(parsed.paise) : String(value);
   }
-  async function exportWorkbook() {
-    const data = state.records.slice().sort(sortBySlNo).map(withDerivedValues);
-    const summary = CALC.summarize(data);
-    const filename = 'Broker_Ledger_' + new Date().toISOString().slice(0, 10) + '.xlsx';
+  async function exportWorkbook(btn) {
+    const originalText = btn ? btn.textContent : '';
+    if (btn) {
+      btn.textContent = '⏳ Generating Excel…';
+      btn.disabled = true;
+    }
+    try {
+      const data = state.records.slice().sort(sortBySlNo).map(withDerivedValues);
+      const summary = CALC.summarize(data);
+      const filename = 'Broker_Ledger_' + new Date().toISOString().slice(0, 10) + '.xlsx';
 
-    if (window.ExcelJS) {
+      if (window.ExcelJS) {
       try {
         const workbook = new window.ExcelJS.Workbook();
         workbook.creator = "SR Brokerage Ledger";
@@ -1015,6 +1025,12 @@
     const workbook = window.XLSX.utils.book_new();
     window.XLSX.utils.book_append_sheet(workbook, worksheet, 'Broker Ledger');
     window.XLSX.writeFile(workbook, filename);
+    } finally {
+      if (btn) {
+        btn.textContent = originalText;
+        btn.disabled = false;
+      }
+    }
   }
   function normalizeHeader(value) {
     return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -1277,6 +1293,65 @@
     byId('shipment-form').addEventListener('input', updateFormCalculations);
     byId('shipment-form').addEventListener('change', updateFormCalculations);
     byId('shipment-form').addEventListener('submit', saveShipment);
+    byId('shipment-form').addEventListener('click', function (e) {
+      const clearBtn = e.target.closest('.field-clear-btn');
+      if (!clearBtn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (state.formMode === 'view') return;
+      const wrap = clearBtn.closest('.input-clear-wrap') || clearBtn.parentElement;
+      const input = wrap ? wrap.querySelector('input, select, textarea') : null;
+      if (input && !input.readOnly && !input.disabled) {
+        input.value = '';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        input.focus();
+        updateFormCalculations();
+      }
+    });
+
+    const clearAllBtn = byId('clear-all-dialog');
+    if (clearAllBtn) {
+      clearAllBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        if (state.formMode === 'view') return;
+        const confirmed = window.confirm('Are you sure you want to clear all currently entered form fields? This will reset the form inputs without deleting any saved records.');
+        if (!confirmed) return;
+        setFormValues(null);
+        toast('Form fields have been reset.', 'info');
+      });
+    }
+
+    const fillPendingBtn = byId('btn-fill-pending');
+    if (fillPendingBtn) {
+      fillPendingBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        if (state.formMode === 'view') return;
+        const form = byId('shipment-form');
+        if (!form) return;
+        const record = formRecord();
+        const computed = CALC.calculateShipment(record);
+        if (computed.pendingAmount === null || computed.pendingAmount === undefined || isNaN(computed.pendingAmount)) {
+          toast('Pending Amount is not available. Please verify Freight and status.', 'error');
+          return;
+        }
+        const pendingPaise = Math.round(computed.pendingAmount * 100);
+        const formattedRupees = CALC.fromPaise(pendingPaise).toLocaleString('en-IN');
+        const target = form.elements.podAmountStatus;
+        if (target) {
+          const currentVal = target.value ? target.value.trim() : '';
+          if (currentVal && currentVal !== '0' && currentVal !== String(computed.pendingAmount) && currentVal !== formattedRupees) {
+            const ok = window.confirm('POD Balance Amount currently contains "' + currentVal + '". Do you want to overwrite it with calculated Pending Amount ₹' + formattedRupees + '?');
+            if (!ok) return;
+          }
+          target.value = String(computed.pendingAmount);
+          target.dispatchEvent(new Event('input', { bubbles: true }));
+          target.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        updateFormCalculations();
+        toast('Calculated Pending Amount (₹' + formattedRupees + ') copied to POD Balance Amount.', 'success');
+      });
+    }
 
     const sForm = byId('shipment-form');
     if (sForm) {
@@ -1374,7 +1449,7 @@
     if (action === 'view') openShipmentDialog('view', button.dataset.id);
     if (action === 'edit') openShipmentDialog('edit', button.dataset.id);
     if (action === 'delete') deleteShipment(button.dataset.id);
-    if (action === 'export') exportWorkbook();
+    if (action === 'export') exportWorkbook(button);
     if (action === 'fullscreen') {
       const sheet = byId('sheet-wrap');
       if (sheet) sheet.classList.toggle('fullscreen');
