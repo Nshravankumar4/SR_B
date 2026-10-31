@@ -7,6 +7,8 @@
   <meta name="description" content="SR Brokerage Ledger shipment and financial tracking application">
   <title>SR Brokerage Ledger</title>
   <link rel="stylesheet" href="Broker-Ledger/css/styles.css">
+  <script defer src="Broker-Ledger/libs/exceljs.min.js"></script>
+  <script defer src="Broker-Ledger/libs/FileSaver.min.js"></script>
   <script defer src="Broker-Ledger/libs/xlsx.full.min.js"></script>
   <script defer src="Broker-Ledger/js/config.js"></script>
   <script defer src="Broker-Ledger/js/calculations.js"></script>
@@ -155,12 +157,16 @@
           <label>FRIGHT (₹) <span class="required">*</span><input name="freight" inputmode="decimal" placeholder="e.g. 60,000" required></label>
           <label>T/M (₹)<input name="tM" inputmode="decimal" placeholder="Optional"></label>
           <label>ADVANCE (₹)<input name="advance" inputmode="decimal" placeholder="Optional"></label>
+          <label>1st Advance Given Date<input name="date1" type="date"></label>
           <label>ADVANCE2 (₹)<input name="advance2" inputmode="decimal" placeholder="Optional"></label>
+          <label>2nd Advance Given Date<input name="date2" type="date"></label>
           <label>ADVANCE3 (₹)<input name="advance3" inputmode="decimal" placeholder="Optional"></label>
+          <label>3rd Advance Given Date<input name="date3" type="date"></label>
+          <label>Unloading Date<input name="unloadingDate" type="date"></label>
           <label>COD / To-Pay (₹ or note)<input name="codToPay" maxlength="80" placeholder="Amount or text placeholder" aria-describedby="cod-help"><small id="cod-help" class="field-help">For A/TO-PAY and F/TO-PAY this is calculated as FRIGHT − T/M − advances. TOBILLED notes are preserved.</small></label>
           <label>Extra Amount (₹)<input name="extraAmount" inputmode="decimal" placeholder="Optional"></label>
           <label>PM/PA Date<input name="pmPaDate" type="date"></label>
-          <label>P/M (₹)<input name="pM" inputmode="decimal" placeholder="Optional"></label>
+          <label>Payment Mamul / P/M (₹)<input name="pM" inputmode="decimal" placeholder="Optional"></label>
         </div>
       </section>
       <section class="form-section" aria-labelledby="bank-pod-title">
@@ -170,7 +176,8 @@
           <label>IFSC<input name="ifscCode" list="ifsc-suggestions" maxlength="20" autocapitalize="characters" placeholder="e.g. SBIN0010659" style="text-transform: uppercase;"></label>
           <label>Bank<input name="bank" list="bank-suggestions" maxlength="100" placeholder="Bank name / payment mode"></label>
           <label>POD received date<input name="podReceivedDate" type="date"></label>
-          <label>POD Amount Status<input name="podAmountStatus" maxlength="100" placeholder="Status or note"></label>
+          <label>Balance Date<input name="balanceDate" type="date"></label>
+          <label>POD Balance Amount / Status<input name="podAmountStatus" maxlength="100" placeholder="Status or note"></label>
           <label class="form-span">Remarks<input name="remarks" maxlength="500" placeholder="Optional notes"></label>
         </div>
       </section>

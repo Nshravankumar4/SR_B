@@ -325,6 +325,12 @@ button:active:not(:disabled), .btn:active:not(:disabled), .nav-tab:active, .user
 .auth-password-control { position: relative; }
 .auth-password-control input { padding-right: 2.75rem !important; }
 .auth-password-control button {
+  z-index: 10;
+  pointer-events: auto;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   position: absolute;
   top: 50%;
   right: .75rem;

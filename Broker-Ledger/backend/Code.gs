@@ -3,8 +3,8 @@ var BROKER_AUDIT_SHEET_NAME = 'Audit';
 var BROKER_DATA_VERSION_KEY = 'BROKER_LEDGER_DATA_VERSION';
 var BROKER_FIELDS = [
   'slNo', 'transportName', 'date', 'lrNo', 'truckNo', 'from', 'to', 'accountNo',
-  'ifscCode', 'bank', 'freight', 'tM', 'advance', 'advance2', 'advance3',
-  'podReceivedDate', 'codToPay', 'pendingTobilled', 'extraAmount', 'pmPaDate',
+  'ifscCode', 'bank', 'freight', 'tM', 'advance', 'date1', 'advance2', 'date2', 'advance3', 'date3',
+  'unloadingDate', 'podReceivedDate', 'balanceDate', 'codToPay', 'pendingTobilled', 'extraAmount', 'pmPaDate',
   'pM', 'pendingAmount', 'podAmountStatus', 'remarks', 'toPayStatus'
 ];
 var BROKER_TEXT_LIMITS = {
@@ -107,7 +107,8 @@ function doPost(event) {
   catch (parseError) { return brokerJson_({ success: false, message: 'Request JSON is invalid.' }); }
   request = request || {};
 
-  if (String(request.action || '') === 'ping') {
+  var action = String(request.action || '');
+  if (action === 'ping' || action === 'login' || action === 'version') {
     try { return brokerJson_(brokerHandle_(request)); }
     catch (error) {
       return brokerJson_({ success: false, message: String(error && error.message ? error.message : error) });
@@ -308,8 +309,8 @@ function brokerValidateAndCalculate_(source) {
     var value = source[field];
     if (value === null || value === undefined) value = '';
     if (field === 'slNo' || field === 'pendingTobilled' || field === 'pendingAmount') return;
-    if (field === 'date' || field === 'podReceivedDate' || field === 'pmPaDate') {
-      record[field] = field === 'date' && !value ? '' : brokerNormalizeDate_(value, field);
+    if (field === 'date' || field === 'date1' || field === 'date2' || field === 'date3' || field === 'unloadingDate' || field === 'podReceivedDate' || field === 'pmPaDate' || field === 'balanceDate') {
+      record[field] = !value ? '' : brokerNormalizeDate_(value, field);
     } else if (field === 'toPayStatus') {
       record[field] = brokerNormalizeStatus_(value);
     } else if (field === 'codToPay') {

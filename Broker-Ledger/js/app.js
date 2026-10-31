@@ -26,15 +26,17 @@
 
   const FIELD_ORDER = [
     'slNo', 'transportName', 'date', 'lrNo', 'truckNo', 'from', 'to', 'accountNo',
-    'ifscCode', 'bank', 'freight', 'tM', 'advance', 'advance2', 'advance3',
-    'podReceivedDate', 'codToPay', 'pendingTobilled', 'extraAmount', 'pmPaDate',
+    'ifscCode', 'bank', 'freight', 'tM', 'advance', 'date1', 'advance2', 'date2', 'advance3', 'date3',
+    'unloadingDate', 'podReceivedDate', 'balanceDate', 'codToPay', 'pendingTobilled', 'extraAmount', 'pmPaDate',
     'pM', 'pendingAmount', 'podAmountStatus', 'remarks', 'toPayStatus'
   ];
   const LABELS = {
     slNo: 'SL NO', transportName: 'TRSP NAME', date: 'DATE', lrNo: 'LR NO', truckNo: 'TRUCK NO',
     from: 'FROM', to: 'TO', accountNo: 'ACCOUNT NO', ifscCode: 'IFSC CODE', bank: 'PAYMENT MADE',
-    freight: 'FRIGHT', tM: 'T/M', advance: 'ADVANCE', advance2: 'ADVANCE2', advance3: 'ADVANCE3',
-    podReceivedDate: 'POD RECD Date', codToPay: 'Cash on Delivery (COD) :A/Topay&Ftopay',
+    freight: 'FRIGHT', tM: 'T/M', advance: 'ADVANCE', date1: '1ST ADV DATE',
+    advance2: 'ADVANCE2', date2: '2ND ADV DATE', advance3: 'ADVANCE3', date3: '3RD ADV DATE',
+    unloadingDate: 'UNLOADING DATE', podReceivedDate: 'POD RECD Date', balanceDate: 'BALANCE DATE',
+    codToPay: 'Cash on Delivery (COD) :A/Topay&Ftopay',
     pendingTobilled: 'Pending Amount: Tobilled', extraAmount: 'Extra Amount',
     pmPaDate: 'PM/PA Date', pM: 'P/M', pendingAmount: 'Pending Amount',
     podAmountStatus: 'POD Amount Status', remarks: 'REMARKS / NOTE', toPayStatus: 'ToPayStatus'
@@ -43,7 +45,7 @@
     'freight', 'tM', 'advance', 'advance2', 'advance3',
     'pendingTobilled', 'extraAmount', 'pM', 'pendingAmount'
   ]);
-  const DATE_FIELDS = new Set(['date', 'podReceivedDate', 'pmPaDate']);
+  const DATE_FIELDS = new Set(['date', 'date1', 'date2', 'date3', 'unloadingDate', 'podReceivedDate', 'pmPaDate', 'balanceDate']);
 
   function byId(id) { return document.getElementById(id); }
   function escapeHtml(value) {
@@ -176,6 +178,7 @@
     const summary = numericTotals(state.records);
     const userName = state.user && (state.user.name || state.user.username);
     const metrics = [
+      ['Total Ledger Closing', formatMoneyPaise(summary.pendingAmountPaise), 'Net outstanding ledger closing'],
       ['Total shipments', String(summary.shipmentCount), 'All statuses'],
       ['Total FRIGHT', formatMoneyPaise(summary.freightPaise), 'All shipments'],
       ['Total advances', formatMoneyPaise(summary.advancePaise), 'ADVANCE + ADVANCE2 + ADVANCE3'],
@@ -191,6 +194,52 @@
       return '<article class="status-card">' + statusBadge(status) + '<span>' +
         summary.statusCounts[status] + ' shipment' + (summary.statusCounts[status] === 1 ? '' : 's') + '</span></article>';
     }).join('');
+    const pendingByTransporter = {};
+    (state.records || []).forEach(function (rec) {
+      const derived = withDerivedValues(rec);
+      const parsedPending = CALC.parseMoney(derived.pendingAmount, { allowEmpty: true });
+      if (!parsedPending.ok || parsedPending.empty || parsedPending.paise <= 0) return;
+      const trsp = String(rec.transportName || '').trim() || 'Unassigned Transporter';
+      if (!pendingByTransporter[trsp]) {
+        pendingByTransporter[trsp] = {
+          name: trsp,
+          contact: rec.accountNo || rec.truckNo || '—',
+          balancePaise: 0,
+          oldestDate: rec.date || rec.podReceivedDate || rec.date1 || '',
+          recordsCount: 0
+        };
+      }
+      pendingByTransporter[trsp].balancePaise += parsedPending.paise;
+      pendingByTransporter[trsp].recordsCount += 1;
+      const curDate = rec.date || rec.podReceivedDate || rec.date1;
+      if (curDate && (!pendingByTransporter[trsp].oldestDate || curDate < pendingByTransporter[trsp].oldestDate)) {
+        pendingByTransporter[trsp].oldestDate = curDate;
+      }
+    });
+
+    const transporterList = Object.values(pendingByTransporter).sort(function (a, b) {
+      return b.balancePaise - a.balancePaise;
+    });
+
+    const pendingTransporterRows = transporterList.length ? transporterList.map(function (t) {
+      let daysPending = '—';
+      if (t.oldestDate) {
+        const d = new Date(t.oldestDate);
+        if (!Number.isNaN(d.getTime())) {
+          const diff = Math.max(0, Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24)));
+          daysPending = diff + ' days';
+        }
+      }
+      return '<tr>' +
+        '<td><strong>' + escapeHtml(t.name) + '</strong> (' + t.recordsCount + ' shipment' + (t.recordsCount === 1 ? '' : 's') + ')</td>' +
+        '<td>' + escapeHtml(t.contact) + '</td>' +
+        '<td class="numeric" style="color: #b91c1c; font-weight: 700;">' + formatMoneyPaise(t.balancePaise) + '</td>' +
+        '<td style="text-align: center;"><span class="status-badge atopay">' + escapeHtml(daysPending) + '</span></td>' +
+        '</tr>';
+    }).join('') : '<tr><td colspan="4" class="empty-state">🎉 All caught up — no outstanding balance payments!</td></tr>';
+
+    const pendingSection = '<section class="panel"><h2 class="section-title">⏳ Transporter Pending Balance Payments</h2><p class="toolbar-help">Active outstanding balance payments aggregated by transporter with pending duration.</p><div class="table-wrap"><table class="ledger-table"><thead><tr><th>Transporter Name</th><th>Transporter Number / Contact</th><th class="numeric">Balance Payment</th><th style="text-align:center;">Number of Days</th></tr></thead><tbody>' + pendingTransporterRows + '</tbody></table></div></section>';
+
     return '<section class="dashboard-hero-banner"><div class="banner-welcome">' +
       '<h2>👋 Hello, ' + escapeHtml(userName || 'there') + '! Welcome to SR Brokerage Ledger &amp; Dashboard</h2>' +
       '<p>Real-time freight billing and transparent broker settlement reconciliation.</p></div>' +
@@ -201,6 +250,7 @@
       '</div></section>' +
       '<div class="metrics-grid">' + cards + '</div>' +
       '<section class="panel"><h2 class="section-title">Shipment status</h2><div class="status-grid">' + statuses + '</div></section>' +
+      pendingSection +
       '<section class="panel"><div class="toolbar"><div><h2 class="section-title">Recent shipments</h2><p class="toolbar-help">Calculated balances update from the source values.</p></div>' +
       '<button class="btn btn-secondary" type="button" data-action="go-ledger">Open Shipment Ledger</button></div>' +
       renderTable(state.records.slice().sort(sortBySlNo).slice(0, 5), false) + '</section>';
@@ -247,30 +297,35 @@
       renderTable(state.filtered, true) + '</section>';
   }
   function renderSheet() {
-    const summary = numericTotals(state.filtered);
-    const rows = state.filtered.length ? state.filtered.map(function (record) {
+    const fullRecords = state.records.slice().sort(sortBySlNo).map(withDerivedValues);
+    const summary = numericTotals(fullRecords);
+    const rows = fullRecords.length ? fullRecords.map(function (record) {
       return '<tr data-id="' + escapeHtml(record.id) + '">' + FIELD_ORDER.map(function (field) {
         return recordCell(record, field).replace('<td', '<td');
       }).join('') + '</tr>';
     }).join('') : '<tr><td class="empty-state" colspan="' + FIELD_ORDER.length + '">' +
       (state.loadingRecords ? 'Loading the latest shipment data…' :
-        (state.loadError ? escapeHtml(state.loadError) : 'No shipments in the current view.')) + '</td></tr>';
-    const totals = '<tr><td class="total-label" colspan="10">TOTAL (' + state.filtered.length + ' records)</td>' +
-      '<td class="numeric">' + formatMoneyPaise(summary.freightPaise) + '</td>' +
-      '<td class="numeric">' + formatMoneyPaise(summary.tMPaise) + '</td>' +
-      '<td class="numeric">' + formatMoneyPaise(summary.advancePaise - summary.advance2Paise - summary.advance3Paise) + '</td>' +
-      '<td class="numeric">' + formatMoneyPaise(summary.advance2Paise) + '</td>' +
-      '<td class="numeric">' + formatMoneyPaise(summary.advance3Paise) + '</td>' +
-      '<td></td><td class="numeric">' + formatMoneyPaise(summary.codToPayPaise) + '</td>' +
-      '<td class="numeric">' + formatMoneyPaise(summary.pendingTobilledPaise) + '</td>' +
-      '<td class="numeric">' + formatMoneyPaise(summary.extraAmountPaise) + '</td>' +
-      '<td></td><td class="numeric">' + formatMoneyPaise(summary.pMPaise) + '</td>' +
-      '<td class="numeric">' + formatMoneyPaise(summary.pendingAmountPaise) + '</td><td colspan="3"></td></tr>';
+        (state.loadError ? escapeHtml(state.loadError) : 'No shipments in the ledger.')) + '</td></tr>';
+    const totalsCells = FIELD_ORDER.map(function (field, idx) {
+      if (idx === 0) return '<td class="total-label">TOTAL (' + fullRecords.length + ' records)</td>';
+      if (field === 'freight') return '<td class="numeric">' + formatMoneyPaise(summary.freightPaise) + '</td>';
+      if (field === 'tM') return '<td class="numeric">' + formatMoneyPaise(summary.tMPaise) + '</td>';
+      if (field === 'advance') return '<td class="numeric">' + formatMoneyPaise(summary.advancePaise - summary.advance2Paise - summary.advance3Paise) + '</td>';
+      if (field === 'advance2') return '<td class="numeric">' + formatMoneyPaise(summary.advance2Paise) + '</td>';
+      if (field === 'advance3') return '<td class="numeric">' + formatMoneyPaise(summary.advance3Paise) + '</td>';
+      if (field === 'codToPay') return '<td class="numeric">' + formatMoneyPaise(summary.codToPayPaise) + '</td>';
+      if (field === 'pendingTobilled') return '<td class="numeric">' + formatMoneyPaise(summary.pendingTobilledPaise) + '</td>';
+      if (field === 'extraAmount') return '<td class="numeric">' + formatMoneyPaise(summary.extraAmountPaise) + '</td>';
+      if (field === 'pM') return '<td class="numeric">' + formatMoneyPaise(summary.pMPaise) + '</td>';
+      if (field === 'pendingAmount') return '<td class="numeric">' + formatMoneyPaise(summary.pendingAmountPaise) + '</td>';
+      return '<td></td>';
+    }).join('');
+    const totals = '<tr>' + totalsCells + '</tr>';
     return '<section class="panel"><div class="toolbar"><div class="sheet-toolbar-heading"><h2>📑 Live Excel Spreadsheet View</h2>' +
-      '<p class="toolbar-help">Live shipment rows, totals, and calculations from the Broker Ledger.</p></div>' +
+      '<p class="toolbar-help">Complete shipment records, formulas, and closing calculations directly from the Broker Ledger.</p></div>' +
       '<div class="view-actions"><button class="btn btn-secondary" type="button" data-action="refresh">↻ Refresh</button><div class="zoom-controls"><label for="sheet-zoom">Zoom</label><select id="sheet-zoom"><option value="0.8">80%</option><option value="0.9">90%</option><option value="1" selected>100%</option><option value="1.15">115%</option></select></div>' +
       '<button class="btn btn-secondary" type="button" data-action="fullscreen">⛶ Full Screen</button><button class="btn btn-secondary" type="button" data-action="print">🖨 Print</button><button class="btn btn-primary" type="button" data-action="export">Download Excel (.xlsx)</button></div></div>' +
-      '<div class="table-meta"><span>' + state.filtered.length + ' rows</span><span>Calculated columns are highlighted.</span></div>' +
+      '<div class="table-meta"><span>' + fullRecords.length + ' rows (full ledger)</span><span>Calculated columns are highlighted.</span></div>' +
       '<div id="sheet-wrap" class="sheet-wrap" tabindex="0" aria-label="Spreadsheet-style shipment ledger"><table class="sheet-table"><thead><tr>' +
       FIELD_ORDER.map(function (field) { return headerCell(field, true); }).join('') + '</tr></thead><tbody>' + rows + '</tbody><tfoot>' + totals + '</tfoot></table></div>' +
       '<div class="summary-strip"><span>Freight: <strong>' + formatMoneyPaise(summary.freightPaise) + '</strong></span><span>Pending: <strong>' +
@@ -711,6 +766,7 @@
     refreshRecords().catch(function (error) {
       setCloudStatus(false, 'Offline — last data may be stale');
       byId('footer-sync').textContent = 'Save completed, but refresh failed; displayed data may be outdated.';
+      toast('Shipment saved, but background sync refresh encountered an issue: ' + error.message, 'error');
     });
     setBusy(false);
     if (saveBtn) {
@@ -732,7 +788,10 @@
     try {
       response = await window.BrokerApi.remove(id);
       toast('Shipment deleted.' + (response.warning ? ' ' + response.warning : ''), response.warning ? 'error' : 'success');
-      refreshRecords().catch(function () {});
+      refreshRecords().catch(function (error) {
+        setCloudStatus(false, 'Offline — last data may be stale');
+        toast('Shipment deleted, but background sync refresh encountered an issue: ' + error.message, 'error');
+      });
     } catch (error) {
       state.records = prevRecords;
       render();
@@ -750,41 +809,212 @@
     const parsed = CALC.parseMoney(value);
     return parsed.ok ? CALC.fromPaise(parsed.paise) : String(value);
   }
-  function exportWorkbook() {
-    if (!window.XLSX) {
-    toast('The local Excel library did not load. Reload the page and try again.', 'error');
-    return;
-    }
+  async function exportWorkbook() {
     const data = state.records.slice().sort(sortBySlNo).map(withDerivedValues);
-    const rows = data.map(function (record) {
-    return FIELD_ORDER.map(function (field) {
-      if (DATE_FIELDS.has(field)) return dateForExport(record[field]);
-      if (field === 'codToPay') {
-        const parsed = CALC.parseMoney(record[field], { allowEmpty: true });
-        return parsed.ok && !parsed.empty ? CALC.fromPaise(parsed.paise) : (record[field] || '');
-      }
-      if (MONEY_FIELDS.has(field)) return numericExportValue(record[field]);
-      return record[field] === null || record[field] === undefined ? '' : record[field];
-    });
-    });
     const summary = CALC.summarize(data);
-    const totals = Array(FIELD_ORDER.length).fill('');
-    totals[0] = 'TOTAL (' + data.length + ' shipments)';
-    totals[10] = CALC.fromPaise(summary.freightPaise);
-    totals[11] = CALC.fromPaise(summary.tMPaise);
-    totals[12] = CALC.fromPaise(summary.advancePaise - summary.advance2Paise - summary.advance3Paise);
-    totals[13] = CALC.fromPaise(summary.advance2Paise);
-    totals[14] = CALC.fromPaise(summary.advance3Paise);
-    totals[17] = CALC.fromPaise(summary.pendingTobilledPaise);
-    totals[18] = CALC.fromPaise(summary.extraAmountPaise);
-    totals[20] = CALC.fromPaise(summary.pMPaise);
-    totals[21] = CALC.fromPaise(summary.pendingAmountPaise);
-    totals[16] = CALC.fromPaise(summary.codToPayPaise);
+    const filename = 'Broker_Ledger_' + new Date().toISOString().slice(0, 10) + '.xlsx';
+
+    if (window.ExcelJS) {
+      try {
+        const workbook = new window.ExcelJS.Workbook();
+        workbook.creator = "SR Brokerage Ledger";
+        workbook.created = new Date();
+
+        const ws = workbook.addWorksheet('Broker Ledger', {
+          views: [{ state: 'frozen', ySplit: 1, showGridLines: true }]
+        });
+
+        ws.columns = FIELD_ORDER.map(function (field) {
+          const label = LABELS[field] || field;
+          let width = Math.max(12, Math.min(32, label.length + 4));
+          if (field === 'slNo') width = 8;
+          else if (field === 'transportName') width = 24;
+          else if (field === 'truckNo') width = 16;
+          else if (field === 'remarks') width = 30;
+          else if (MONEY_FIELDS.has(field) || field === 'codToPay') width = 16;
+          else if (DATE_FIELDS.has(field)) width = 14;
+          return { header: label, key: field, width: width };
+        });
+
+        const navyHeaderFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF002060' } };
+        const statusHeaderFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F766E' } };
+        const calcHeaderFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF047857' } };
+        const codHeaderFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC00000' } };
+
+        const thinBorder = {
+          top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          right: { style: 'thin', color: { argb: 'FFCBD5E1' } }
+        };
+
+        const headerRow = ws.getRow(1);
+        headerRow.height = 28;
+        headerRow.eachCell(function (cell, colNumber) {
+          const field = FIELD_ORDER[colNumber - 1];
+          cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+          cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+          cell.border = thinBorder;
+
+          if (field === 'toPayStatus') cell.fill = statusHeaderFill;
+          else if (field === 'pendingTobilled' || field === 'pendingAmount') cell.fill = calcHeaderFill;
+          else if (field === 'codToPay' || field === 'podReceivedDate') cell.fill = codHeaderFill;
+          else cell.fill = navyHeaderFill;
+        });
+
+        data.forEach(function (record, rowIndex) {
+          const rowData = {};
+          FIELD_ORDER.forEach(function (field) {
+            if (DATE_FIELDS.has(field)) {
+              rowData[field] = dateForExport(record[field]);
+            } else if (field === 'codToPay') {
+              const parsed = CALC.parseMoney(record[field], { allowEmpty: true });
+              rowData[field] = parsed.ok && !parsed.empty ? CALC.fromPaise(parsed.paise) : (record[field] || '');
+            } else if (MONEY_FIELDS.has(field)) {
+              const parsed = CALC.parseMoney(record[field], { allowEmpty: true });
+              rowData[field] = parsed.ok && !parsed.empty ? CALC.fromPaise(parsed.paise) : (record[field] === 0 ? 0 : '');
+            } else {
+              rowData[field] = record[field] === null || record[field] === undefined ? '' : record[field];
+            }
+          });
+
+          const row = ws.addRow(rowData);
+          row.height = 21;
+          const isEven = rowIndex % 2 === 1;
+
+          row.eachCell({ includeEmpty: true }, function (cell, colNumber) {
+            const field = FIELD_ORDER[colNumber - 1];
+            cell.border = thinBorder;
+            cell.font = { name: 'Calibri', size: 10, color: { argb: 'FF111827' } };
+            cell.alignment = { vertical: 'middle' };
+
+            if (isEven) {
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+            }
+
+            if (field === 'slNo' || DATE_FIELDS.has(field) || field === 'lrNo' || field === 'truckNo' || field === 'podAmountStatus') {
+              cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            } else if (MONEY_FIELDS.has(field) || (field === 'codToPay' && typeof cell.value === 'number')) {
+              cell.alignment = { horizontal: 'right', vertical: 'middle' };
+              cell.numFmt = '#,##0.00';
+            }
+
+            if (field === 'pendingTobilled' || field === 'pendingAmount') {
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFECFDF5' } };
+              cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF065F46' } };
+            }
+
+            if (field === 'toPayStatus' && cell.value) {
+              const st = String(cell.value).toUpperCase();
+              cell.alignment = { horizontal: 'center', vertical: 'middle' };
+              if (st.includes('A/TO-PAY')) {
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } };
+                cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF92400E' } };
+              } else if (st.includes('F/TO-PAY')) {
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } };
+                cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF991B1B' } };
+              } else {
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDBEAFE' } };
+                cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF1E40AF' } };
+              }
+            }
+          });
+        });
+
+        const totalsData = {};
+        FIELD_ORDER.forEach(function (f) { totalsData[f] = ''; });
+        totalsData.slNo = 'TOTAL (' + data.length + ' shipments)';
+        totalsData.freight = CALC.fromPaise(summary.freightPaise);
+        totalsData.tM = CALC.fromPaise(summary.tMPaise);
+        totalsData.advance = CALC.fromPaise(summary.advancePaise - summary.advance2Paise - summary.advance3Paise);
+        totalsData.advance2 = CALC.fromPaise(summary.advance2Paise);
+        totalsData.advance3 = CALC.fromPaise(summary.advance3Paise);
+        totalsData.codToPay = CALC.fromPaise(summary.codToPayPaise);
+        totalsData.pendingTobilled = CALC.fromPaise(summary.pendingTobilledPaise);
+        totalsData.extraAmount = CALC.fromPaise(summary.extraAmountPaise);
+        totalsData.pM = CALC.fromPaise(summary.pMPaise);
+        totalsData.pendingAmount = CALC.fromPaise(summary.pendingAmountPaise);
+
+        const totRow = ws.addRow(totalsData);
+        totRow.height = 25;
+        const totalYellowFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF08A' } };
+        const totalBorder = {
+          top: { style: 'medium', color: { argb: 'FFCA8A04' } },
+          bottom: { style: 'double', color: { argb: 'FFCA8A04' } },
+          left: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+          right: { style: 'thin', color: { argb: 'FFCBD5E1' } }
+        };
+
+        totRow.eachCell({ includeEmpty: true }, function (cell, colNumber) {
+          const field = FIELD_ORDER[colNumber - 1];
+          cell.fill = totalYellowFill;
+          cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF000000' } };
+          cell.border = totalBorder;
+          if (MONEY_FIELDS.has(field) || field === 'codToPay') {
+            cell.alignment = { horizontal: 'right', vertical: 'middle' };
+            cell.numFmt = '#,##0.00';
+          } else {
+            cell.alignment = { vertical: 'middle' };
+          }
+        });
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        if (typeof window.saveAs === 'function') {
+          window.saveAs(blob, filename);
+        } else {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(function () {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          }, 200);
+        }
+        toast('Excel workbook downloaded with application styles.', 'success');
+        return;
+      } catch (excelErr) {
+        console.warn('ExcelJS styled export error, falling back to SheetJS:', excelErr);
+      }
+    }
+
+    if (!window.XLSX) {
+      toast('The local Excel library did not load. Reload the page and try again.', 'error');
+      return;
+    }
+    const rows = data.map(function (record) {
+      return FIELD_ORDER.map(function (field) {
+        if (DATE_FIELDS.has(field)) return dateForExport(record[field]);
+        if (field === 'codToPay') {
+          const parsed = CALC.parseMoney(record[field], { allowEmpty: true });
+          return parsed.ok && !parsed.empty ? CALC.fromPaise(parsed.paise) : (record[field] || '');
+        }
+        if (MONEY_FIELDS.has(field)) return numericExportValue(record[field]);
+        return record[field] === null || record[field] === undefined ? '' : record[field];
+      });
+    });
+    const totals = FIELD_ORDER.map(function (field, idx) {
+      if (idx === 0) return 'TOTAL (' + data.length + ' shipments)';
+      if (field === 'freight') return CALC.fromPaise(summary.freightPaise);
+      if (field === 'tM') return CALC.fromPaise(summary.tMPaise);
+      if (field === 'advance') return CALC.fromPaise(summary.advancePaise - summary.advance2Paise - summary.advance3Paise);
+      if (field === 'advance2') return CALC.fromPaise(summary.advance2Paise);
+      if (field === 'advance3') return CALC.fromPaise(summary.advance3Paise);
+      if (field === 'codToPay') return CALC.fromPaise(summary.codToPayPaise);
+      if (field === 'pendingTobilled') return CALC.fromPaise(summary.pendingTobilledPaise);
+      if (field === 'extraAmount') return CALC.fromPaise(summary.extraAmountPaise);
+      if (field === 'pM') return CALC.fromPaise(summary.pMPaise);
+      if (field === 'pendingAmount') return CALC.fromPaise(summary.pendingAmountPaise);
+      return '';
+    });
     const worksheet = window.XLSX.utils.aoa_to_sheet([FIELD_ORDER.map(function (field) { return LABELS[field]; })].concat(rows, [totals]));
     worksheet['!cols'] = FIELD_ORDER.map(function (field) { return { wch: Math.max(12, Math.min(30, LABELS[field].length + 3)) }; });
     const workbook = window.XLSX.utils.book_new();
     window.XLSX.utils.book_append_sheet(workbook, worksheet, 'Broker Ledger');
-    window.XLSX.writeFile(workbook, 'Broker_Ledger_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+    window.XLSX.writeFile(workbook, filename);
   }
   function normalizeHeader(value) {
     return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -795,7 +1025,12 @@
     from: ['from', 'fromcity'], to: ['to', 'tocity'], accountNo: ['accountno'],
     ifscCode: ['ifsccode', 'ifsc'], bank: ['paymentmade', 'bank', 'bankname'],
     freight: ['fright', 'freight'], tM: ['tm', 't/m'], advance: ['advance'],
-    advance2: ['advance2'], advance3: ['advance3'], podReceivedDate: ['podrecddate', 'podreceiveddate'],
+    date1: ['1stadvdate', '1stadvancegivendate', 'advancedate', 'date1'],
+    advance2: ['advance2'], date2: ['2ndadvdate', '2ndadvancegivendate', 'advance2date', 'date2'],
+    advance3: ['advance3'], date3: ['3rdadvdate', '3rdadvancegivendate', 'advance3date', 'date3'],
+    unloadingDate: ['unloadingdate', 'unloaddate'],
+    podReceivedDate: ['podrecddate', 'podreceiveddate'],
+    balanceDate: ['balancedate', 'baldate'],
     codToPay: ['cashondeliverycodatopayftopay', 'codtopay', 'cashondelivery'],
     pendingTobilled: ['pendingamounttobilled'], extraAmount: ['extraamount'],
     pmPaDate: ['pmapadate', 'pmapdate'], pM: ['pm'], pendingAmount: ['pendingamount'],
@@ -933,35 +1168,34 @@
     setBusy(true);
     byId('login-button').textContent = 'Signing in…';
     try {
-    const user = await window.BrokerApi.login(username, password);
-    sessionStorage.setItem('broker-ledger-session', JSON.stringify(user));
-    byId('login-password').value = '';
-    state.user = user;
-    state.loadingRecords = true;
-    state.loadError = '';
-    showApp(user);
-    setCloudStatus(false, 'Loading ledger…');
-    byId('footer-sync').textContent = 'Loading latest ledger…';
-    try {
-      await refreshRecords();
-    } catch (loadError) {
-      if (!state.user) return;
-      state.loadingRecords = false;
-      state.loadError = 'The latest ledger could not be loaded. Check your connection and retry.';
-      setCloudStatus(false, 'Ledger unavailable');
-      byId('footer-sync').textContent = 'Ledger load failed: ' + loadError.message;
-      render();
-      toast('You are signed in, but the latest ledger could not be loaded: ' + loadError.message, 'error');
-    }
+      const user = await window.BrokerApi.login(username, password);
+      sessionStorage.setItem('broker-ledger-session', JSON.stringify(user));
+      byId('login-password').value = '';
+      state.user = user;
+      state.loadingRecords = true;
+      state.loadError = '';
+      showApp(user);
+      setBusy(false);
+      byId('login-button').textContent = '🚀 Secure Login';
+      setCloudStatus(false, 'Loading ledger…');
+      byId('footer-sync').textContent = 'Loading latest ledger…';
+      refreshRecords().catch(function (loadError) {
+        if (!state.user) return;
+        state.loadingRecords = false;
+        state.loadError = 'The latest ledger could not be loaded. Check your connection and retry.';
+        setCloudStatus(false, 'Ledger unavailable');
+        byId('footer-sync').textContent = 'Ledger load failed: ' + loadError.message;
+        render();
+        toast('You are signed in, but the latest ledger could not be loaded: ' + loadError.message, 'error');
+      });
     } catch (error) {
-    sessionStorage.removeItem('broker-ledger-session');
-    state.user = null;
-    state.loadingRecords = false;
-    state.loadError = '';
-    showAuth(error.message);
-    } finally {
-    byId('login-button').textContent = '🚀 Secure Login';
-    setBusy(false);
+      sessionStorage.removeItem('broker-ledger-session');
+      state.user = null;
+      state.loadingRecords = false;
+      state.loadError = '';
+      showAuth(error.message);
+      setBusy(false);
+      byId('login-button').textContent = '🚀 Secure Login';
     }
   }
   async function logout() {
@@ -993,7 +1227,11 @@
       pwdInput.placeholder = isRudra ? 'Enter password for Rudra' : 'Enter password for Admin';
     }
   }
-  function togglePasswordVisibility() {
+  function togglePasswordVisibility(e) {
+    if (e) {
+      if (typeof e.preventDefault === 'function') e.preventDefault();
+      if (typeof e.stopPropagation === 'function') e.stopPropagation();
+    }
     const input = byId('login-password');
     const button = byId('toggle-password');
     if (!input) return;
