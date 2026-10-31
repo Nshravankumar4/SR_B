@@ -21,7 +21,8 @@
     version: 0,
     sortField: 'slNo',
     sortDirection: 1,
-    toastTimer: null
+    toastTimer: null,
+    sheetFilter: null
   };
 
   const FIELD_ORDER = [
@@ -169,14 +170,234 @@
     }
     return '<td>' + escapeHtml(value) + '</td>';
   }
+  function parseRecordDate(val) {
+    if (!val) return null;
+    const str = String(val).trim();
+    if (!str) return null;
+    const dmy = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+    if (dmy) {
+      const day = parseInt(dmy[1], 10);
+      const month = parseInt(dmy[2], 10) - 1;
+      const year = parseInt(dmy[3], 10);
+      const d = new Date(year, month, day);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+    const ymd = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+    if (ymd) {
+      const year = parseInt(ymd[1], 10);
+      const month = parseInt(ymd[2], 10) - 1;
+      const day = parseInt(ymd[3], 10);
+      const d = new Date(year, month, day);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+    const fallback = new Date(str);
+    return Number.isNaN(fallback.getTime()) ? null : fallback;
+  }
+
+  function getShipmentPendingSince(rec) {
+    return rec.balanceDate || rec.unloadingDate || rec.date1 || rec.date || '';
+  }
+
+  function getShipmentDaysPending(rec) {
+    const dateStr = getShipmentPendingSince(rec);
+    const d = parseRecordDate(dateStr);
+    if (!d) return 0;
+    const diffMs = Date.now() - d.getTime();
+    return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+  }
+
+  function isShipmentOverdue(rec) {
+    const derived = withDerivedValues(rec);
+    const parsed = CALC.parseMoney(derived.pendingAmount, { allowEmpty: true });
+    if (!parsed.ok || parsed.empty || parsed.paise <= 0) return false;
+    const days = getShipmentDaysPending(rec);
+    if (days > 15) return true;
+    if (rec.balanceDate) {
+      const bd = parseRecordDate(rec.balanceDate);
+      if (bd && bd.getTime() < (Date.now() - 24 * 60 * 60 * 1000)) return true;
+    }
+    return false;
+  }
+
+  function isShipmentPodMissing(rec) {
+    const pod = String(rec.podReceivedDate || '').trim().toUpperCase();
+    return !pod || pod === 'PENDING' || pod === 'NO' || pod === '0';
+  }
+
+  function isShipmentOpenIssue(rec) {
+    if (!rec.lrNo || !String(rec.lrNo).trim()) return true;
+    if (!rec.transportName || !String(rec.transportName).trim()) return true;
+    if (!rec.truckNo || !String(rec.truckNo).trim()) return true;
+    const freightParsed = CALC.parseMoney(rec.freight, { allowEmpty: true });
+    if (!freightParsed.ok || freightParsed.empty || freightParsed.paise <= 0) return true;
+    const derived = withDerivedValues(rec);
+    const pendingParsed = CALC.parseMoney(derived.pendingAmount, { allowEmpty: true });
+    if (pendingParsed.ok && !pendingParsed.empty && pendingParsed.paise < 0) return true;
+    return false;
+  }
+
   function renderMetric(label, value, note) {
     return '<article class="metric-card"><span class="metric-label">' + escapeHtml(label) +
       '</span><strong class="metric-value">' + escapeHtml(value) +
       '</strong>' + (note ? '<span class="metric-note">' + escapeHtml(note) + '</span>' : '') + '</article>';
   }
+
   function renderDashboard() {
     const summary = numericTotals(state.records);
     const userName = state.user && (state.user.name || state.user.username);
+
+    // Status section cards (Section A)
+    const statusCards = [
+      { status: 'TOBILLED', title: 'TOBILLED', colorClass: 'status-card-tobilled', count: summary.statusCounts['TOBILLED'] || 0, badgeClass: 'status-badge-tobilled' },
+      { status: 'A/TO-PAY', title: 'A/TO-PAY', colorClass: 'status-card-atopay', count: summary.statusCounts['A/TO-PAY'] || 0, badgeClass: 'status-badge-atopay' },
+      { status: 'F/TO-PAY', title: 'F/TO-PAY', colorClass: 'status-card-ftopay', count: summary.statusCounts['F/TO-PAY'] || 0, badgeClass: 'status-badge-ftopay' }
+    ];
+
+    const statusGridHtml = statusCards.map(function (item) {
+      return '<button type="button" class="control-status-card ' + item.colorClass + '" data-action="sheet-filter" data-filter-type="status" data-filter-value="' + escapeHtml(item.status) + '" data-filter-label="Status: ' + escapeHtml(item.status) + '" title="Click to view ' + item.title + ' shipments in Live Excel Sheet">' +
+        '<div class="control-status-top">' +
+          '<span class="control-status-count">' + item.count + '</span>' +
+          '<span class="control-status-badge ' + item.badgeClass + '">' + escapeHtml(item.title) + '</span>' +
+        '</div>' +
+        '<div class="control-status-bottom">' +
+          '<span class="control-status-sub">' + (item.count === 1 ? 'Shipment' : 'Shipments') + '</span>' +
+          '<span class="control-card-cta">View in Sheet →</span>' +
+        '</div>' +
+      '</button>';
+    }).join('');
+
+    // Process Action Cards & Transporter-wise Balance Details (Section B & C)
+    let pendingCount = 0;
+    let pendingTotalPaise = 0;
+    let overdueCount = 0;
+    let overdueTotalPaise = 0;
+    let podMissingCount = 0;
+    let openIssuesCount = 0;
+    const pendingShipmentRows = [];
+
+    (state.records || []).forEach(function (rec) {
+      const derived = withDerivedValues(rec);
+      const parsedPending = CALC.parseMoney(derived.pendingAmount, { allowEmpty: true });
+      const hasPending = parsedPending.ok && !parsedPending.empty && parsedPending.paise > 0;
+      const days = getShipmentDaysPending(rec);
+      const overdue = isShipmentOverdue(rec);
+      const podMissing = isShipmentPodMissing(rec);
+      const openIssue = isShipmentOpenIssue(rec);
+
+      if (hasPending) {
+        pendingCount++;
+        pendingTotalPaise += parsedPending.paise;
+        if (overdue) {
+          overdueCount++;
+          overdueTotalPaise += parsedPending.paise;
+        }
+        const trsp = String(rec.transportName || '').trim() || 'Unassigned Transporter';
+        const pendingSince = getShipmentPendingSince(rec);
+        pendingShipmentRows.push({
+          record: rec,
+          transporter: trsp,
+          lrNo: rec.lrNo || '—',
+          truckNo: rec.truckNo || '—',
+          balancePaise: parsedPending.paise,
+          pendingSince: pendingSince ? formatDate(pendingSince) : '—',
+          daysPending: days,
+          isOverdue: overdue
+        });
+      }
+      if (podMissing) podMissingCount++;
+      if (openIssue) openIssuesCount++;
+    });
+
+    const actionCards = [
+      {
+        category: 'pending',
+        title: 'Pending',
+        badgeText: '⏳ Outstanding',
+        badgeClass: 'badge-pending',
+        subtitle: 'Outstanding payments',
+        count: pendingCount,
+        amount: formatMoneyPaise(pendingTotalPaise),
+        note: 'Shipments with balance payable',
+        filterLabel: 'Pending Balance Shipments'
+      },
+      {
+        category: 'overdue',
+        title: 'Overdue',
+        badgeText: '⚠️ Past Due (>15d)',
+        badgeClass: 'badge-overdue',
+        subtitle: 'Payments past due',
+        count: overdueCount,
+        amount: formatMoneyPaise(overdueTotalPaise),
+        note: 'Payments pending > 15 days',
+        filterLabel: 'Overdue Shipments (>15 days)'
+      },
+      {
+        category: 'pod_missing',
+        title: 'POD Missing',
+        badgeText: '📄 Awaiting POD',
+        badgeClass: 'badge-pod-missing',
+        subtitle: 'Shipments awaiting POD',
+        count: podMissingCount,
+        amount: podMissingCount + (podMissingCount === 1 ? ' shipment' : ' shipments'),
+        note: 'Missing delivery proof confirmation',
+        filterLabel: 'POD Missing Shipments'
+      },
+      {
+        category: 'open_issues',
+        title: 'Open Issues',
+        badgeText: '🔍 Unresolved',
+        badgeClass: 'badge-open-issues',
+        subtitle: 'Incomplete or unresolved items',
+        count: openIssuesCount,
+        amount: openIssuesCount + (openIssuesCount === 1 ? ' item' : ' items'),
+        note: 'Missing LR/Truck/Transporter or discrepancy',
+        filterLabel: 'Open Issues / Unresolved Records'
+      }
+    ];
+
+    const actionCardsHtml = actionCards.map(function (card) {
+      return '<button type="button" class="control-action-card" data-action="sheet-filter" data-filter-type="category" data-filter-value="' + card.category + '" data-filter-label="' + escapeHtml(card.filterLabel) + '" title="Click to view ' + card.title + ' in Live Excel Sheet">' +
+        '<div class="action-card-header">' +
+          '<span class="action-card-badge ' + card.badgeClass + '">' + card.badgeText + '</span>' +
+          '<span class="action-card-count">' + card.count + '</span>' +
+        '</div>' +
+        '<div class="action-card-body">' +
+          '<h4 class="action-card-title">' + card.title + '</h4>' +
+          '<p class="action-card-sub">' + card.subtitle + '</p>' +
+          '<strong class="action-card-amount">' + card.amount + '</strong>' +
+          '<span class="action-card-note">' + card.note + '</span>' +
+        '</div>' +
+        '<div class="action-card-footer">' +
+          '<span class="control-card-cta">Open in Live Sheet →</span>' +
+        '</div>' +
+      '</button>';
+    }).join('');
+
+    // Balance Payment Transporter-wise Table Rows
+    pendingShipmentRows.sort(function (a, b) {
+      const trspCmp = a.transporter.localeCompare(b.transporter);
+      if (trspCmp !== 0) return trspCmp;
+      return b.daysPending - a.daysPending;
+    });
+
+    const pendingTableRows = pendingShipmentRows.length ? pendingShipmentRows.map(function (row) {
+      const statusBadge = row.isOverdue
+        ? '<span class="status-badge overdue">⚠️ Overdue</span>'
+        : '<span class="status-badge pending">⏳ Pending</span>';
+      const daysBadge = '<span class="days-pill ' + (row.isOverdue ? 'pill-overdue' : 'pill-normal') + '">' + row.daysPending + ' days</span>';
+      return '<tr>' +
+        '<td><button type="button" class="table-transporter-btn" data-action="sheet-filter" data-filter-type="transporter" data-filter-value="' + escapeHtml(row.transporter) + '" data-filter-label="Transporter: ' + escapeHtml(row.transporter) + '" title="Click to filter sheet by ' + escapeHtml(row.transporter) + '"><strong>' + escapeHtml(row.transporter) + '</strong> <span class="filter-icon">🔍</span></button></td>' +
+        '<td>' + escapeHtml(row.lrNo) + '</td>' +
+        '<td>' + escapeHtml(row.truckNo) + '</td>' +
+        '<td class="numeric" style="color: #b91c1c; font-weight: 800;">' + formatMoneyPaise(row.balancePaise) + '</td>' +
+        '<td style="text-align: center;">' + escapeHtml(row.pendingSince) + '</td>' +
+        '<td style="text-align: center;">' + daysBadge + '</td>' +
+        '<td style="text-align: center;">' + statusBadge + '</td>' +
+        '<td style="text-align: center;"><button type="button" class="btn btn-secondary btn-sm" data-action="sheet-filter" data-filter-type="transporter" data-filter-value="' + escapeHtml(row.transporter) + '" data-filter-label="Transporter: ' + escapeHtml(row.transporter) + '">View in Sheet</button></td>' +
+      '</tr>';
+    }).join('') : '<tr><td colspan="8" class="empty-state">🎉 All caught up — no outstanding balance payments!</td></tr>';
+
+    // Financial Metrics Summary
     const metrics = [
       ['Total Ledger Closing', formatMoneyPaise(summary.pendingAmountPaise), 'Net outstanding ledger closing'],
       ['Total shipments', String(summary.shipmentCount), 'All statuses'],
@@ -190,68 +411,39 @@
       ['Numeric COD / To-Pay', formatMoneyPaise(summary.codToPayPaise), 'Text placeholders excluded']
     ];
     const cards = metrics.map(function (m) { return renderMetric(m[0], m[1], m[2]); }).join('');
-    const statuses = CALC.STATUS.map(function (status) {
-      return '<article class="status-card">' + statusBadge(status) + '<span>' +
-        summary.statusCounts[status] + ' shipment' + (summary.statusCounts[status] === 1 ? '' : 's') + '</span></article>';
-    }).join('');
-    const pendingByTransporter = {};
-    (state.records || []).forEach(function (rec) {
-      const derived = withDerivedValues(rec);
-      const parsedPending = CALC.parseMoney(derived.pendingAmount, { allowEmpty: true });
-      if (!parsedPending.ok || parsedPending.empty || parsedPending.paise <= 0) return;
-      const trsp = String(rec.transportName || '').trim() || 'Unassigned Transporter';
-      if (!pendingByTransporter[trsp]) {
-        pendingByTransporter[trsp] = {
-          name: trsp,
-          contact: rec.accountNo || rec.truckNo || '—',
-          balancePaise: 0,
-          oldestDate: rec.date || rec.podReceivedDate || rec.date1 || '',
-          recordsCount: 0
-        };
-      }
-      pendingByTransporter[trsp].balancePaise += parsedPending.paise;
-      pendingByTransporter[trsp].recordsCount += 1;
-      const curDate = rec.date || rec.podReceivedDate || rec.date1;
-      if (curDate && (!pendingByTransporter[trsp].oldestDate || curDate < pendingByTransporter[trsp].oldestDate)) {
-        pendingByTransporter[trsp].oldestDate = curDate;
-      }
-    });
-
-    const transporterList = Object.values(pendingByTransporter).sort(function (a, b) {
-      return b.balancePaise - a.balancePaise;
-    });
-
-    const pendingTransporterRows = transporterList.length ? transporterList.map(function (t) {
-      let daysPending = '—';
-      if (t.oldestDate) {
-        const d = new Date(t.oldestDate);
-        if (!Number.isNaN(d.getTime())) {
-          const diff = Math.max(0, Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24)));
-          daysPending = diff + ' days';
-        }
-      }
-      return '<tr>' +
-        '<td><strong>' + escapeHtml(t.name) + '</strong> (' + t.recordsCount + ' shipment' + (t.recordsCount === 1 ? '' : 's') + ')</td>' +
-        '<td>' + escapeHtml(t.contact) + '</td>' +
-        '<td class="numeric" style="color: #b91c1c; font-weight: 700;">' + formatMoneyPaise(t.balancePaise) + '</td>' +
-        '<td style="text-align: center;"><span class="status-badge atopay">' + escapeHtml(daysPending) + '</span></td>' +
-        '</tr>';
-    }).join('') : '<tr><td colspan="4" class="empty-state">🎉 All caught up — no outstanding balance payments!</td></tr>';
-
-    const pendingSection = '<section class="panel"><h2 class="section-title">⏳ Transporter Pending Balance Payments</h2><p class="toolbar-help">Active outstanding balance payments aggregated by transporter with pending duration.</p><div class="table-wrap"><table class="ledger-table"><thead><tr><th>Transporter Name</th><th>Transporter Number / Contact</th><th class="numeric">Balance Payment</th><th style="text-align:center;">Number of Days</th></tr></thead><tbody>' + pendingTransporterRows + '</tbody></table></div></section>';
 
     return '<section class="dashboard-hero-banner"><div class="banner-welcome">' +
-      '<h2>👋 Hello, ' + escapeHtml(userName || 'there') + '! Welcome to SR Brokerage Ledger &amp; Dashboard</h2>' +
-      '<p>Real-time freight billing and transparent broker settlement reconciliation.</p></div>' +
+      '<div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.3rem;">' +
+      '<h2 style="margin:0;">👋 Hello, ' + escapeHtml(userName || 'there') + '! Welcome to SR Brokerage Ledger</h2>' +
+      '<span class="control-centre-live-badge">● SHIPMENT CONTROL CENTRE</span></div>' +
+      '<p>Live shipment overview · Status distribution, outstanding payments, and action items.</p></div>' +
       '<div class="banner-quick-actions">' +
       (state.preview || state.loadingRecords || state.loadError ? '' : '<button class="btn btn-primary" type="button" data-action="add-shipment">＋ Add Shipment</button>') +
       '<button class="btn btn-secondary" type="button" data-action="go-sheet">View Excel Sheet</button>' +
       '<button class="btn btn-secondary" type="button" data-action="export">Export Excel</button>' +
       '</div></section>' +
-      '<div class="metrics-grid">' + cards + '</div>' +
-      '<section class="panel"><h2 class="section-title">Shipment status</h2><div class="status-grid">' + statuses + '</div></section>' +
-      pendingSection +
-      '<section class="panel"><div class="toolbar"><div><h2 class="section-title">Recent shipments</h2><p class="toolbar-help">Calculated balances update from the source values.</p></div>' +
+      '<section class="panel control-centre-panel"><div class="section-header-wrap"><div>' +
+      '<h3 class="section-title">📊 Shipment Status</h3>' +
+      '<p class="toolbar-help">Total volume by payment status. Click any status card to filter in Live Excel Sheet.</p></div>' +
+      '<span class="section-hint-pill">⚡ Click card to filter sheet</span></div>' +
+      '<div class="status-control-grid">' + statusGridHtml + '</div></section>' +
+      '<section class="panel control-centre-panel"><div class="section-header-wrap"><div>' +
+      '<h3 class="section-title">⚡ Payment and Issue Overview</h3>' +
+      '<p class="toolbar-help">High-priority operational action items and outstanding balances. Click any card to view records.</p></div>' +
+      '<span class="section-hint-pill">⚡ Click card to filter sheet</span></div>' +
+      '<div class="action-cards-grid">' + actionCardsHtml + '</div></section>' +
+      '<section class="panel control-centre-panel"><div class="section-header-wrap"><div>' +
+      '<h3 class="section-title">💰 Balance Payment – Transporter-wise</h3>' +
+      '<p class="toolbar-help">Pending freight balances grouped transporter-wise with duration and payment status. Click a transporter name to filter the Live Excel Sheet.</p></div>' +
+      '<div class="section-header-actions"><span class="balance-summary-pill">Total Pending: <strong>' + formatMoneyPaise(pendingTotalPaise) + '</strong> (' + pendingShipmentRows.length + ' shipments)</span></div></div>' +
+      '<div class="table-wrap" tabindex="0" aria-label="Transporter balance payments table"><table class="ledger-table"><thead><tr>' +
+      '<th>Transporter Name</th><th>LR Number</th><th>Truck Number</th><th class="numeric">Balance Amount</th><th style="text-align:center;">Pending Since</th><th style="text-align:center;">Days Pending</th><th style="text-align:center;">Payment Status</th><th style="text-align:center;">Action</th>' +
+      '</tr></thead><tbody>' + pendingTableRows + '</tbody></table></div></section>' +
+      '<section class="panel"><div class="section-header-wrap"><div>' +
+      '<h3 class="section-title">📈 Ledger Closing &amp; Financial Summary</h3>' +
+      '<p class="toolbar-help">Aggregated financial figures across all shipments and payment statuses.</p></div></div>' +
+      '<div class="metrics-grid">' + cards + '</div></section>' +
+      '<section class="panel"><div class="toolbar"><div><h3 class="section-title">Recent shipments</h3><p class="toolbar-help">Calculated balances update from the source values.</p></div>' +
       '<button class="btn btn-secondary" type="button" data-action="go-ledger">Open Shipment Ledger</button></div>' +
       renderTable(state.records.slice().sort(sortBySlNo).slice(0, 5), false) + '</section>';
   }
@@ -296,16 +488,67 @@
       '<span>FRIGHT in view: <strong>' + formatMoneyPaise(filteredSummary.freightPaise) + '</strong> · Pending in view: <strong>' + formatMoneyPaise(filteredSummary.pendingAmountPaise) + '</strong></span></div>' +
       renderTable(state.filtered, true) + '</section>';
   }
+  function getFilteredSheetRecords() {
+    let records = state.records.slice().sort(sortBySlNo).map(withDerivedValues);
+    if (!state.sheetFilter) return records;
+    const filter = state.sheetFilter;
+    if (filter.type === 'status') {
+      return records.filter(function (r) {
+        return r.toPayStatus === filter.value;
+      });
+    }
+    if (filter.type === 'transporter') {
+      const target = String(filter.value || '').trim().toLowerCase();
+      return records.filter(function (r) {
+        return String(r.transportName || '').trim().toLowerCase() === target;
+      });
+    }
+    if (filter.type === 'category') {
+      if (filter.value === 'pending') {
+        return records.filter(function (r) {
+          const parsed = CALC.parseMoney(r.pendingAmount, { allowEmpty: true });
+          return parsed.ok && !parsed.empty && parsed.paise > 0;
+        });
+      }
+      if (filter.value === 'overdue') {
+        return records.filter(function (r) {
+          return isShipmentOverdue(r);
+        });
+      }
+      if (filter.value === 'pod_missing') {
+        return records.filter(function (r) {
+          return isShipmentPodMissing(r);
+        });
+      }
+      if (filter.value === 'open_issues') {
+        return records.filter(function (r) {
+          return isShipmentOpenIssue(r);
+        });
+      }
+    }
+    return records;
+  }
+
   function renderSheet() {
-    const fullRecords = state.records.slice().sort(sortBySlNo).map(withDerivedValues);
+    const fullRecords = getFilteredSheetRecords();
     const summary = numericTotals(fullRecords);
+    const totalAllCount = state.records.length;
+    const filterBanner = state.sheetFilter ?
+      ('<div class="sheet-filter-banner" role="status">' +
+        '<div class="sheet-filter-info">' +
+          '<span class="sheet-filter-badge">🔍 FILTERED VIEW</span>' +
+          '<span class="sheet-filter-label">Filtered by: <strong>' + escapeHtml(state.sheetFilter.label) + '</strong></span>' +
+          '<span class="sheet-filter-count">(' + fullRecords.length + ' of ' + totalAllCount + ' shipments)</span>' +
+        '</div>' +
+        '<button class="btn btn-secondary btn-sm sheet-clear-filter-btn" type="button" data-action="clear-sheet-filter">✕ Show all records</button>' +
+      '</div>') : '';
     const rows = fullRecords.length ? fullRecords.map(function (record) {
       return '<tr data-id="' + escapeHtml(record.id) + '">' + FIELD_ORDER.map(function (field) {
         return recordCell(record, field).replace('<td', '<td');
       }).join('') + '</tr>';
     }).join('') : '<tr><td class="empty-state" colspan="' + FIELD_ORDER.length + '">' +
       (state.loadingRecords ? 'Loading the latest shipment data…' :
-        (state.loadError ? escapeHtml(state.loadError) : 'No shipments in the ledger.')) + '</td></tr>';
+        (state.loadError ? escapeHtml(state.loadError) : (state.sheetFilter ? 'No shipments matching active filter: ' + escapeHtml(state.sheetFilter.label) : 'No shipments in the ledger.'))) + '</td></tr>';
     const totalsCells = FIELD_ORDER.map(function (field, idx) {
       if (idx === 0) return '<td class="total-label">TOTAL (' + fullRecords.length + ' records)</td>';
       if (field === 'freight') return '<td class="numeric">' + formatMoneyPaise(summary.freightPaise) + '</td>';
@@ -325,7 +568,8 @@
       '<p class="toolbar-help">Complete shipment records, formulas, and closing calculations directly from the Broker Ledger.</p></div>' +
       '<div class="view-actions"><button class="btn btn-secondary" type="button" data-action="refresh">↻ Refresh</button><div class="zoom-controls"><label for="sheet-zoom">Zoom</label><select id="sheet-zoom"><option value="0.8">80%</option><option value="0.9">90%</option><option value="1" selected>100%</option><option value="1.15">115%</option></select></div>' +
       '<button class="btn btn-secondary" type="button" data-action="fullscreen">⛶ Full Screen</button><button class="btn btn-secondary" type="button" data-action="print">🖨 Print</button><button class="btn btn-primary" type="button" data-action="export">Download Excel (.xlsx)</button></div></div>' +
-      '<div class="table-meta"><span>' + fullRecords.length + ' rows (full ledger)</span><span>Calculated columns are highlighted.</span></div>' +
+      filterBanner +
+      '<div class="table-meta"><span>' + fullRecords.length + ' rows ' + (state.sheetFilter ? '(filtered view)' : '(full ledger)') + '</span><span>Calculated columns are highlighted.</span></div>' +
       '<div id="sheet-wrap" class="sheet-wrap" tabindex="0" aria-label="Spreadsheet-style shipment ledger"><table class="sheet-table"><thead><tr>' +
       FIELD_ORDER.map(function (field) { return headerCell(field, true); }).join('') + '</tr></thead><tbody>' + rows + '</tbody><tfoot>' + totals + '</tfoot></table></div>' +
       '<div class="summary-strip"><span>Freight: <strong>' + formatMoneyPaise(summary.freightPaise) + '</strong></span><span>Pending: <strong>' +
@@ -1396,6 +1640,9 @@
         document.querySelectorAll('.nav-tab').forEach(function (btn) {
           btn.classList.toggle('active', btn === button);
         });
+        if (button.dataset.view === 'sheet') {
+          state.sheetFilter = null;
+        }
         state.view = button.dataset.view;
         toggleSidebar(false);
         render();
@@ -1426,8 +1673,28 @@
     const button = event.target.closest('[data-action]');
     if (!button) return;
     const action = button.dataset.action;
+    if (action === 'sheet-filter') {
+      const filterType = button.dataset.filterType;
+      const filterValue = button.dataset.filterValue;
+      const filterLabel = button.dataset.filterLabel || filterValue;
+      if (filterType && filterValue) {
+        state.sheetFilter = {
+          type: filterType,
+          value: filterValue,
+          label: filterLabel
+        };
+        state.view = 'sheet';
+        render();
+      }
+      return;
+    }
+    if (action === 'clear-sheet-filter') {
+      state.sheetFilter = null;
+      render();
+      return;
+    }
     if (action === 'add-shipment') openShipmentDialog('add');
-    if (action === 'go-sheet') { state.view = 'sheet'; render(); }
+    if (action === 'go-sheet') { state.sheetFilter = null; state.view = 'sheet'; render(); }
     if (action === 'go-ledger') { state.view = 'ledger'; render(); }
     if (action === 'sort') {
       const field = button.dataset.field;
