@@ -12,7 +12,7 @@
   <script src="Broker-Ledger/libs/xlsx.full.min.js"></script>
   <script defer src="Broker-Ledger/js/config.js"></script>
   <script defer src="Broker-Ledger/js/calculations.js"></script>
-  <script defer src="Broker-Ledger/js/recovery.js"></script>
+  <script defer src="Broker-Ledger/js/receipts.js"></script>
   <script defer src="Broker-Ledger/js/validation.js"></script>
   <script defer src="Broker-Ledger/js/api.js"></script>
   <script defer src="Broker-Ledger/js/app.js"></script>
@@ -331,7 +331,11 @@
             <input name="pendingAmount" readonly class="calculated-field" aria-live="polite">
           </label>
         </div>
-        <div class="calculation-hint">Balances update from the source amounts and status. COD / To-Pay text placeholders are preserved.</div>
+        <div class="receipt-summary-row">
+          <p id="receipt-balance-summary" class="calculation-hint" hidden></p>
+          <button id="btn-record-receipt" class="btn btn-secondary btn-sm" type="button" hidden>＋ Record Payment Received</button>
+        </div>
+        <div class="calculation-hint">Pending Amount: Tobilled follows the workbook formula. TOBILLED payments received reduce the final Pending Amount; COD / To-Pay text notes are preserved.</div>
       </section>
       <footer class="modal-actions">
         <button id="clear-all-dialog" class="btn btn-secondary btn-clear-all" type="button" title="Clear all currently entered form fields">🗑️ Clear All</button>
@@ -341,34 +345,24 @@
     </form>
   </dialog>
 
-  <dialog id="recovery-dialog" class="modal">
-    <form id="recovery-form" novalidate>
+  <dialog id="receipt-dialog" class="modal">
+    <form id="receipt-form" novalidate>
       <header class="modal-header">
-        <div><p class="eyebrow">PAYMENT SETTLEMENT</p><h2 id="recovery-dialog-title">Record recovery</h2></div>
-        <button id="close-recovery-dialog" class="icon-button" type="button" aria-label="Close recovery form">×</button>
+        <div><p class="eyebrow">TOBILLED PAYMENT</p><h2 id="receipt-dialog-title">Record payment received</h2></div>
+        <button id="close-receipt-dialog" class="icon-button" type="button" aria-label="Close payment form">×</button>
       </header>
-      <p id="recovery-shipment-meta" class="toolbar-help"></p>
-      <div id="recovery-error" class="notice notice-error" role="alert" hidden></div>
-      <section class="form-section" aria-labelledby="recovery-balances-title">
-        <h3 id="recovery-balances-title" class="form-section-title">Outstanding balances</h3>
-        <div id="recovery-balances" class="recovery-balance-grid"></div>
-      </section>
-      <section class="form-section" aria-labelledby="recovery-entry-title">
-        <h3 id="recovery-entry-title" class="form-section-title">Record received payment</h3>
+      <p id="receipt-shipment-meta" class="toolbar-help"></p>
+      <div id="receipt-error" class="notice notice-error" role="alert" hidden></div>
+      <div id="receipt-balance" class="calculation-hint"></div>
+      <section class="form-section" aria-labelledby="receipt-entry-title">
+        <h3 id="receipt-entry-title" class="form-section-title">Payment details</h3>
         <div class="form-grid">
-          <label class="form-field">
-            <span class="field-label">Pending category <span class="required">*</span></span>
-            <select name="category" required>
-              <option value="pendingTobilled">Pending Amount: Tobilled</option>
-              <option value="pendingAmount">Pending Amount (final)</option>
-            </select>
-          </label>
           <label class="form-field">
             <span class="field-label">Amount received (₹) <span class="required">*</span></span>
             <input name="receivedAmount" inputmode="decimal" placeholder="Amount received" required>
           </label>
           <label class="form-field">
-            <span class="field-label">Actual received date <span class="required">*</span></span>
+            <span class="field-label">Date received <span class="required">*</span></span>
             <input name="receivedDate" type="date" required>
           </label>
           <label class="form-field">
@@ -384,22 +378,18 @@
             <span class="field-label">Transaction reference (optional)</span>
             <input name="transactionReference" maxlength="120">
           </label>
-          <label class="form-field form-span">
-            <span class="field-label">Remarks (optional)</span>
-            <input name="remarks" maxlength="500">
-          </label>
         </div>
-        <div id="recovery-preview" class="calculation-hint" aria-live="polite"></div>
       </section>
-      <section class="form-section" aria-labelledby="recovery-history-title">
-        <h3 id="recovery-history-title" class="form-section-title">Recovery history</h3>
-        <div id="recovery-history" class="table-wrap"></div>
+      <section class="form-section" aria-labelledby="receipt-history-title">
+        <h3 id="receipt-history-title" class="form-section-title">Received payment history</h3>
+        <div id="receipt-history" class="table-wrap"></div>
       </section>
       <footer class="modal-actions">
-        <button id="cancel-recovery-dialog" class="btn btn-secondary" type="button">Cancel</button>
-        <button id="save-recovery" class="btn btn-primary" type="submit">Save Recovery</button>
+        <button id="cancel-receipt-dialog" class="btn btn-secondary" type="button">Cancel</button>
+        <button id="save-receipt" class="btn btn-primary" type="submit">Add Payment</button>
       </footer>
     </form>
   </dialog>
+
 </body>
 </html>

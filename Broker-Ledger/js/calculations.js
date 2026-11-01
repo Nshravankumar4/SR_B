@@ -23,6 +23,9 @@
       return Number.isSafeInteger(paise) ? { ok: true, empty: false, paise } : { ok: false, error: 'Amount is too large.' };
     }
     let text = String(value).trim().replace(/\s/g, '').replace(/^([+-])₹/, '$1').replace(/^₹/, '').replace(/₹$/, '');
+    if (allowEmpty && (text === '—' || text === '–' || text === '-')) {
+      return { ok: true, empty: true, paise: 0 };
+    }
     if (!text) return allowEmpty ? { ok: true, empty: true, paise: 0 } : { ok: false, error: 'Enter an amount.' };
     const sign = text[0] === '-' ? -1 : 1;
     if (text[0] === '-' || text[0] === '+') text = text.slice(1);

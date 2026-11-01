@@ -38,16 +38,10 @@ The UI, import/export headers, and API use the same underlying keys:
 | `remarks` | REMARKS / NOTE | Notes |
 | `toPayStatus` | ToPayStatus | One of the three allowed statuses |
 
-`Pending Amount: Tobilled` and `Pending Amount` are derived fields. For TOBILLED, they follow the workbook formulas `FRIGHT - T/M - ADVANCE - ADVANCE2 - ADVANCE3` and `Pending Amount: Tobilled + Extra Amount - P/M`. For A/TO-PAY and F/TO-PAY, COD is `FRIGHT - T/M - ADVANCE - ADVANCE2 - ADVANCE3` and final Pending Amount is `FRIGHT - T/M - ADVANCE - COD`, equivalent to `ADVANCE2 + ADVANCE3`.
+`Pending Amount: Tobilled` and formula-derived `Pending Amount` are calculated fields. For TOBILLED, they follow the workbook formulas `FRIGHT - T/M - ADVANCE - ADVANCE2 - ADVANCE3` and `Pending Amount: Tobilled + Extra Amount - P/M`. For A/TO-PAY and F/TO-PAY, COD is `FRIGHT - T/M - ADVANCE - ADVANCE2 - ADVANCE3` and final Pending Amount is `FRIGHT - T/M - ADVANCE - COD`, equivalent to `ADVANCE2 + ADVANCE3`.
 
 Records have a stable backend-generated `id`, and audit metadata (`createdAt`, `updatedAt`, `createdBy`) is maintained outside the user-editable form.
 
-## Recovery transactions
+## Received payments
 
-Recovery transactions are stored in the separate `Recoveries` sheet; the existing `Shipments` JSON storage remains unchanged. Each transaction links to one shipment and exactly one TOBILLED category (`pendingTobilled` or `pendingAmount`). These calculation bases overlap and must not be added together as one liability.
-
-Transactions retain the recovery ID, idempotency key, shipment ID, LR number, party name, category, original calculated amount at receipt time, signed received amount, actual received date, payment mode, optional transaction reference, remaining amount snapshot, status, remarks, creation timestamp, and creator. A reversal is a new negative transaction linked to the original recovery; history is append-only.
-
-The backend rejects over-recovery and edits that would make current balances lower than net recoveries. A shipment with recovery history cannot be deleted or moved out of TOBILLED. Duplicate requests return the original transaction when the same idempotency key and payload are retried.
-
-The original shipment formula values remain unchanged. App ledger rows, totals, pending filters, and exports show the remaining amount after signed recovery transactions; the shipment form continues to show the original calculation.
+The separate `Receipts` tab is append-only and stores actual money received against TOBILLED shipments. The app displays their outstanding balance as formula-derived `Pending Amount` minus the total receipts for that shipment; `Pending Amount: Tobilled` and all shipment source/formula values remain unchanged. Receipts cannot exceed the positive remaining balance. Existing `Recoveries` tabs, if any, are not read, edited, or deleted.

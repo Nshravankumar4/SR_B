@@ -9,7 +9,6 @@
     if (actual !== expected) throw new Error('Expected ' + expected + ', received ' + actual);
   }
   const c = window.BrokerCalculations;
-  const recovery = window.BrokerRecovery;
   const fixture = [
     { toPayStatus: 'TOBILLED', freight: '60,000', tM: '300', advance: '49,700', extraAmount: '', pM: '200', codToPay: 'if Tobilled NA' },
     { toPayStatus: 'TOBILLED', freight: '60,000', tM: '300', advance: '49,700', extraAmount: '5,000', pM: '300', codToPay: 'if Tobilled NA' },
@@ -32,6 +31,21 @@
     const result = c.calculateShipment(Object.assign({}, fixture[2], { advance2: '1,000', advance3: '500' }));
     equal(result.codToPay, 38500);
     equal(result.pendingAmount, 1500);
+  });
+  check('P/M updates final pending and retains overpayment as a negative balance', function () {
+    const result = c.calculateShipment({
+      toPayStatus: 'TOBILLED', freight: '65,000', advance: '65,000',
+      tM: '', advance2: '', advance3: '', extraAmount: '', pM: '500'
+    });
+    equal(result.pendingTobilled, 0);
+    equal(result.pendingAmount, -500);
+  });
+  check('received payments reduce only TOBILLED final pending balances', function () {
+    const balance = window.BrokerReceipts.calculateBalance(10000, [
+      { shipmentId: 'shipment-1', receivedAmount: 10000 }
+    ], 'shipment-1');
+    equal(balance.remainingPaise, 0);
+    equal(balance.receivedPaise, 1000000);
   });
   check('status case and whitespace normalize to canonical values', function () {
     equal(c.normalizeStatus(' a / to-pay '), 'A/TO-PAY');
@@ -105,44 +119,6 @@
     rows[2].codToPay = '999999';
     rows[3].codToPay = 'stale';
     equal(c.summarize(rows).codToPayPaise, 8200000);
-  });
-  check('partial and full recovery totals recalculate in exact paise', function () {
-    const records = [
-      { shipmentId: 'shipment-1', category: 'pendingAmount', receivedAmount: 4000 },
-      { shipmentId: 'shipment-1', category: 'pendingAmount', receivedAmount: 6000 }
-    ];
-    const result = recovery.calculateBalance(10000, records, 'shipment-1', 'pendingAmount');
-    equal(result.recoveredPaise, 1000000);
-    equal(result.remainingPaise, 0);
-    equal(result.status, 'FULLY RECEIVED');
-  });
-  check('recovery categories are calculated independently', function () {
-    const records = [
-      { shipmentId: 'shipment-1', category: 'pendingTobilled', receivedAmount: 4000 },
-      { shipmentId: 'shipment-1', category: 'pendingAmount', receivedAmount: 2500 }
-    ];
-    equal(recovery.calculateBalance(10000, records, 'shipment-1', 'pendingTobilled').remainingPaise, 600000);
-    equal(recovery.calculateBalance(10000, records, 'shipment-1', 'pendingAmount').remainingPaise, 750000);
-  });
-  check('reversal is retained as a negative recovery transaction', function () {
-    const records = [
-      { shipmentId: 'shipment-1', category: 'pendingAmount', receivedAmount: 4000 },
-      { shipmentId: 'shipment-1', category: 'pendingAmount', receivedAmount: -4000, type: 'REVERSAL', reversalOf: 'rec-1' }
-    ];
-    const result = recovery.calculateBalance(10000, records, 'shipment-1', 'pendingAmount');
-    equal(result.recoveredPaise, 0);
-    equal(result.remainingPaise, 1000000);
-    equal(result.status, 'PENDING');
-  });
-  check('recovery summary reports remaining pending instead of original debt', function () {
-    const record = {
-      id: 'shipment-1', toPayStatus: 'TOBILLED', freight: 10000,
-      tM: 0, advance: 0, advance2: 0, advance3: 0, extraAmount: 0, pM: 0
-    };
-    const summary = recovery.summarize([record], [
-      { shipmentId: 'shipment-1', category: 'pendingAmount', receivedAmount: 10000 }
-    ]);
-    equal(summary.pendingAmountPaise, 0);
   });
   check('duplicate detection identifies matching LR No, date, and truck while allowing editing', function () {
     const existing = [

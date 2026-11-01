@@ -58,6 +58,8 @@ test('parser accepts common currency formats and exact paise', function () {
 
 test('empty optional values calculate as zero but invalid text is not zero', function () {
   assert.deepEqual(calc.parseMoney('', { allowEmpty: true }), { ok: true, empty: true, paise: 0 });
+  assert.deepEqual(calc.parseMoney('—', { allowEmpty: true }), { ok: true, empty: true, paise: 0 });
+  assert.deepEqual(calc.parseMoney('-', { allowEmpty: true }), { ok: true, empty: true, paise: 0 });
   assert.equal(calc.calculateShipment(fixtures[3]).pendingAmount, 0);
   assert.equal(calc.parseMoney('if Tobilled NA', { allowEmpty: true }).ok, false);
   assert.equal(calc.parseMoney('12,34', { allowEmpty: true }).ok, false);
@@ -78,6 +80,22 @@ test('source edits update pending balances', function () {
   const result = calc.calculateShipment(edited);
   assert.equal(result.pendingTobilled, 10000);
   assert.equal(result.pendingAmount, 11500);
+});
+
+test('P/M is subtracted from final pending and negative balances remain visible', function () {
+  const record = {
+    toPayStatus: 'TOBILLED',
+    freight: '65,000',
+    advance: '65,000',
+    tM: '',
+    advance2: '',
+    advance3: '',
+    extraAmount: '',
+    pM: '500'
+  };
+  const result = calc.calculateShipment(record);
+  assert.equal(result.pendingTobilled, 0);
+  assert.equal(result.pendingAmount, -500);
 });
 
 test('negative pending results are preserved without a zero floor', function () {

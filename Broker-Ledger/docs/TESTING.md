@@ -2,13 +2,13 @@
 
 ## Automated test suites
 
-The Node.js calculation, validation, and recovery suites run with:
+The Node.js calculation and validation suites run with:
 
 ```powershell
-node --test .\Broker-Ledger\tests\calculations.test.js .\Broker-Ledger\tests\summaries.test.js .\Broker-Ledger\tests\validation.test.js .\Broker-Ledger\tests\recovery.test.js .\Broker-Ledger\tests\backend-recovery.test.js
+node --test .\Broker-Ledger\tests\calculations.test.js .\Broker-Ledger\tests\summaries.test.js .\Broker-Ledger\tests\validation.test.js .\Broker-Ledger\tests\receipts.test.js
 ```
 
-The recovery suites verify exact-paise partial/full/multiple transactions, independent categories, actual dates, idempotent retries, over-recovery rejection, append-only reversals, shipment edit protection, and backend validation through mocked Apps Script spreadsheet services. Run the existing PowerShell suites separately:
+Run the existing PowerShell suites separately:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -Command "& '.\verify_broker_ledger.ps1'; & '.\run_behavioral_tests.ps1'; & '.\Broker-Ledger\tests\verify_dates_and_login.ps1'"
@@ -32,11 +32,12 @@ powershell -ExecutionPolicy Bypass -Command "& '.\verify_broker_ledger.ps1'; & '
    - Dedicated Balance Date.
    - 3 Advance Cards grouping (amounts + dates).
    - Individual field clear buttons (×).
-   - Live Calculation Summary with `⚡ Fill Pending Amount` button and recovery entry/history.
+   - Live Calculation Summary with `⚡ Fill Pending Amount` button.
    - Clear All button (`#clear-all-dialog`) with confirmation.
    - Dynamic button labels: `Add & Submit Shipment` and `Update Shipment`.
    - Sub-second non-blocking login.
    - Password visibility toggle with click/pointer handling.
+   - Receipt history and payment recording are covered by `receipts.test.js`; verify through the deployed web app that receiving ₹10,000 against ₹10,000 TOBILLED pending displays ₹0 and preserves shipment source values.
 
 ## Browser checks
 

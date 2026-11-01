@@ -1,17 +1,12 @@
 var BROKER_SHEET_NAME = 'Shipments';
 var BROKER_AUDIT_SHEET_NAME = 'Audit';
-var BROKER_RECOVERY_SHEET_NAME = 'Recoveries';
-var BROKER_DATA_VERSION_KEY = 'BROKER_LEDGER_DATA_VERSION';
-var BROKER_RECOVERY_CATEGORIES = {
-  pendingTobilled: 'Pending Amount: Tobilled',
-  pendingAmount: 'Pending Amount'
-};
-var BROKER_RECOVERY_HEADERS = [
-  'RECOVERY_ID', 'IDEMPOTENCY_KEY', 'SHIPMENT_ID', 'LR_NO', 'PARTY_NAME',
-  'PENDING_CATEGORY', 'ORIGINAL_PENDING', 'RECEIVED_AMOUNT', 'RECOVERY_DATE',
-  'PAYMENT_MODE', 'TRANSACTION_REFERENCE', 'REMAINING_PENDING', 'RECOVERY_STATUS',
-  'REMARKS', 'CREATED_AT', 'CREATED_BY', 'RECOVERY_JSON'
+var BROKER_RECEIPTS_SHEET_NAME = 'Receipts';
+var BROKER_RECEIPT_HEADERS = [
+  'RECEIPT_ID', 'IDEMPOTENCY_KEY', 'SHIPMENT_ID', 'LR_NO', 'PARTY_NAME',
+  'RECEIVED_AMOUNT', 'RECEIVED_DATE', 'PAYMENT_MODE', 'TRANSACTION_REFERENCE',
+  'REMAINING_PENDING', 'CREATED_AT', 'CREATED_BY', 'RECEIPT_JSON'
 ];
+var BROKER_DATA_VERSION_KEY = 'BROKER_LEDGER_DATA_VERSION';
 var BROKER_FIELDS = [
   'slNo', 'transportName', 'date', 'lrNo', 'truckNo', 'from', 'to', 'accountNo',
   'ifscCode', 'bank', 'freight', 'tM', 'advance', 'date1', 'advance2', 'date2', 'advance3', 'date3',
@@ -92,7 +87,7 @@ function setupBrokerLedger() {
     auditSheet.setFrozenRows(1);
     auditSheet.getRange(1, 1, 1, 5).setFontWeight('bold').setBackground('#0f172a').setFontColor('#ffffff');
   }
-  brokerEnsureRecoverySheet_(spreadsheet);
+  brokerEnsureReceiptSheet_(spreadsheet);
   if (!properties.getProperty(BROKER_DATA_VERSION_KEY)) {
     properties.setProperty(BROKER_DATA_VERSION_KEY, '1');
   }
@@ -164,7 +159,17 @@ function brokerHandle_(request) {
     return {
       success: true,
       records: brokerReadRecords_(sheet),
-      recoveries: brokerReadRecoveries_(brokerEnsureRecoverySheet_(spreadsheet)),
+      receipts: brokerReadReceipts_(brokerEnsureReceiptSheet_(spreadsheet)),
+      version: brokerVersion_()
+    };
+  }
+  if (action === 'createReceipt') {
+    var receiptResult = brokerCreateReceipt_(spreadsheet, session, request.receipt);
+    return {
+      success: true,
+      receipt: receiptResult.receipt,
+      duplicate: receiptResult.duplicate,
+      warning: receiptResult.warning,
       version: brokerVersion_()
     };
   }
@@ -198,7 +203,7 @@ function brokerHandle_(request) {
       };
     }
     var updated = brokerValidateAndCalculate_(request.record);
-    brokerAssertRecoveriesCompatible_(spreadsheet, updated, id);
+    brokerAssertReceiptsCompatible_(spreadsheet, updated, id);
     brokerAssertUnique_(updated, records, id);
     updated.id = id;
     updated.slNo = existingRecord.slNo;
@@ -217,8 +222,8 @@ function brokerHandle_(request) {
     var deleteRecord = deleteRecords.find(function(item) { return item.id === deleteId; });
     var deleteRowNumber = brokerRowNumberForId_(sheet, deleteId);
     if (!deleteRecord || !deleteRowNumber) throw new Error('Shipment not found. Reload and try again.');
-    if (brokerReadRecoveries_(brokerEnsureRecoverySheet_(spreadsheet)).some(function(item) { return item.shipmentId === deleteId; })) {
-      throw new Error('This shipment has recovery history and cannot be deleted. Keep it in the ledger to preserve the financial audit trail.');
+    if (brokerReadReceipts_(brokerEnsureReceiptSheet_(spreadsheet)).some(function(item) { return item.shipmentId === deleteId; })) {
+      throw new Error('This shipment has received payments. Keep it in the ledger or resolve its receipt history before deleting it.');
     }
     sheet.deleteRow(deleteRowNumber);
     var deleteAuditWarning = brokerAudit_(spreadsheet, session, 'DELETE', deleteId, deleteRecord.lrNo);
@@ -228,26 +233,6 @@ function brokerHandle_(request) {
   if (action === 'importShipments') {
     var imported = brokerImport_(spreadsheet, sheet, session, request.records);
     return { success: true, imported: imported.count, warning: imported.warning, version: brokerVersion_() };
-  }
-  if (action === 'createRecovery') {
-    var recoveryResult = brokerCreateRecovery_(spreadsheet, session, request.recovery);
-    return {
-      success: true,
-      recovery: recoveryResult.recovery,
-      duplicate: recoveryResult.duplicate,
-      warning: recoveryResult.warning,
-      version: brokerVersion_()
-    };
-  }
-  if (action === 'reverseRecovery') {
-    var reversalResult = brokerReverseRecovery_(spreadsheet, session, request.reversal);
-    return {
-      success: true,
-      recovery: reversalResult.recovery,
-      duplicate: reversalResult.duplicate,
-      warning: reversalResult.warning,
-      version: brokerVersion_()
-    };
   }
   if (action === 'createBackup') {
     if (session.role !== 'Admin') throw new Error('Only an administrator can create backups.');
@@ -423,6 +408,9 @@ function brokerParseMoney_(value, allowEmpty) {
     return Number.isSafeInteger(cents) ? { ok: true, paise: cents } : { ok: false, error: 'Amount is too large.' };
   }
   var text = String(value).trim().replace(/\s/g, '').replace(/^([+-])₹/, '$1').replace(/^₹/, '').replace(/₹$/, '');
+  if (allowEmpty && (text === '—' || text === '–' || text === '-')) {
+    return { ok: true, paise: 0 };
+  }
   var sign = 1;
   if (text.charAt(0) === '-' || text.charAt(0) === '+') {
     if (text.charAt(0) === '-') sign = -1;
@@ -479,269 +467,150 @@ function brokerAppend_(sheet, record) {
   sheet.appendRow([record.id, JSON.stringify(record), record.createdAt, record.updatedAt, record.createdBy]);
 }
 
-function brokerEnsureRecoverySheet_(spreadsheet) {
-  var sheet = spreadsheet.getSheetByName(BROKER_RECOVERY_SHEET_NAME);
-  if (!sheet) sheet = spreadsheet.insertSheet(BROKER_RECOVERY_SHEET_NAME);
+function brokerEnsureReceiptSheet_(spreadsheet) {
+  var sheet = spreadsheet.getSheetByName(BROKER_RECEIPTS_SHEET_NAME);
+  if (!sheet) sheet = spreadsheet.insertSheet(BROKER_RECEIPTS_SHEET_NAME);
   if (sheet.getLastRow() === 0) {
-    sheet.getRange(1, 1, 1, BROKER_RECOVERY_HEADERS.length).setValues([BROKER_RECOVERY_HEADERS]);
+    sheet.getRange(1, 1, 1, BROKER_RECEIPT_HEADERS.length).setValues([BROKER_RECEIPT_HEADERS]);
     sheet.setFrozenRows(1);
-    sheet.getRange('A:F').setNumberFormat('@');
-    sheet.getRange('G:H').setNumberFormat('#,##0.00');
-    sheet.getRange('I:K').setNumberFormat('@');
-    sheet.getRange('L:L').setNumberFormat('#,##0.00');
-    sheet.getRange('M:Q').setNumberFormat('@');
-    sheet.getRange(1, 1, 1, BROKER_RECOVERY_HEADERS.length).setFontWeight('bold').setBackground('#0f172a').setFontColor('#ffffff');
+    sheet.getRange('A:E').setNumberFormat('@');
+    sheet.getRange('F:F').setNumberFormat('#,##0.00');
+    sheet.getRange('G:I').setNumberFormat('@');
+    sheet.getRange('J:J').setNumberFormat('#,##0.00');
+    sheet.getRange('K:M').setNumberFormat('@');
+    sheet.getRange(1, 1, 1, BROKER_RECEIPT_HEADERS.length).setFontWeight('bold').setBackground('#0f172a').setFontColor('#ffffff');
   } else {
-    var actualHeaders = sheet.getRange(1, 1, 1, BROKER_RECOVERY_HEADERS.length).getValues()[0];
-    if (BROKER_RECOVERY_HEADERS.some(function(header, index) { return actualHeaders[index] !== header; })) {
-      throw new Error('The Recoveries sheet has an unsupported structure. No financial changes were made. Contact the administrator.');
+    var actualHeaders = sheet.getRange(1, 1, 1, BROKER_RECEIPT_HEADERS.length).getValues()[0];
+    if (BROKER_RECEIPT_HEADERS.some(function(header, index) { return actualHeaders[index] !== header; })) {
+      throw new Error('The Receipts sheet has an unsupported structure. No payment data was changed. Contact the administrator.');
     }
   }
   return sheet;
 }
 
-function brokerReadRecoveries_(sheet) {
+function brokerReadReceipts_(sheet) {
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
-  var rows = sheet.getRange(2, 1, lastRow - 1, 17).getValues();
-  var recoveries = rows.filter(function(row) { return row[0] && row[16]; }).map(function(row) {
-    var recovery;
-    try { recovery = JSON.parse(String(row[16])); }
-    catch (error) { throw new Error('A recovery ledger row is corrupt. No financial changes were made. Contact the administrator.'); }
-    if (!recovery || !recovery.id || !recovery.shipmentId || !recovery.idempotencyKey) {
-      throw new Error('A recovery ledger row is incomplete. No financial changes were made. Contact the administrator.');
+  var rows = sheet.getRange(2, 1, lastRow - 1, BROKER_RECEIPT_HEADERS.length).getValues();
+  var receipts = rows.filter(function(row) { return row[0] && row[12]; }).map(function(row) {
+    var receipt;
+    try { receipt = JSON.parse(String(row[12])); }
+    catch (error) { throw new Error('A received-payment row is corrupt. No payment data was changed. Contact the administrator.'); }
+    if (!receipt || !receipt.id || !receipt.shipmentId || !receipt.idempotencyKey) {
+      throw new Error('A received-payment row is incomplete. No payment data was changed. Contact the administrator.');
     }
-    return recovery;
+    return receipt;
   });
   var ids = {};
   var keys = {};
-  recoveries.forEach(function(recovery) {
-    var type = recovery.type || 'RECOVERY';
-    var amount = brokerParseMoney_(recovery.receivedAmount, false);
-    if (ids[recovery.id] || keys[recovery.idempotencyKey] ||
-        !/^[a-f0-9-]{36}$/i.test(recovery.idempotencyKey) ||
-        !Object.prototype.hasOwnProperty.call(BROKER_RECOVERY_CATEGORIES, recovery.category) ||
-        !amount.ok || (type === 'RECOVERY' && amount.paise <= 0) ||
-        (type === 'REVERSAL' && (amount.paise >= 0 || !recovery.reversalOf)) ||
-        (type !== 'RECOVERY' && type !== 'REVERSAL')) {
-      throw new Error('The recovery ledger contains duplicate or invalid transaction data. Contact the administrator.');
+  receipts.forEach(function(receipt) {
+    var amount = brokerParseMoney_(receipt.receivedAmount, false);
+    if (ids[receipt.id] || keys[receipt.idempotencyKey] ||
+        !/^[a-f0-9-]{36}$/i.test(receipt.idempotencyKey) || !amount.ok || amount.paise <= 0 ||
+        ['Cash', 'Bank Transfer', 'UPI', 'Other'].indexOf(receipt.paymentMode) < 0) {
+      throw new Error('The Receipts sheet contains duplicate or invalid payment data. Contact the administrator.');
     }
-    brokerNormalizeDate_(recovery.recoveryDate, 'Recovery date');
-    ids[recovery.id] = true;
-    keys[recovery.idempotencyKey] = true;
+    brokerNormalizeDate_(receipt.receivedDate, 'Received date');
+    ids[receipt.id] = true;
+    keys[receipt.idempotencyKey] = true;
   });
-  recoveries.forEach(function(recovery) {
-    if ((recovery.type || 'RECOVERY') !== 'REVERSAL') return;
-    var original = recoveries.find(function(item) {
-      return item.id === recovery.reversalOf && (item.type || 'RECOVERY') === 'RECOVERY';
-    });
-    if (!original || original.shipmentId !== recovery.shipmentId || original.category !== recovery.category ||
-        Math.round(Number(original.receivedAmount) * 100) !== -Math.round(Number(recovery.receivedAmount) * 100) ||
-        recoveries.some(function(item) {
-          return item !== recovery && item.type === 'REVERSAL' && item.reversalOf === recovery.reversalOf;
-        })) {
-      throw new Error('The recovery ledger contains an invalid reversal link. Contact the administrator.');
-    }
-  });
-  return recoveries;
+  return receipts;
 }
 
-function brokerRecoveryTotals_(recoveries, shipmentId) {
-  var totals = { pendingTobilled: 0, pendingAmount: 0 };
-  recoveries.forEach(function(recovery) {
-    if (recovery.shipmentId !== shipmentId) return;
-    if (!Object.prototype.hasOwnProperty.call(totals, recovery.category)) {
-      throw new Error('A recovery row contains an unsupported pending category.');
-    }
-    var received = brokerParseMoney_(recovery.receivedAmount, false);
-    var type = recovery.type || 'RECOVERY';
-    if (!received.ok || (type === 'RECOVERY' && received.paise <= 0) ||
-        (type === 'REVERSAL' && (received.paise >= 0 || !recovery.reversalOf)) ||
-        (type !== 'RECOVERY' && type !== 'REVERSAL')) {
-      throw new Error('A recovery row contains an invalid received amount or transaction type.');
-    }
-    totals[recovery.category] += received.paise;
-  });
-  return totals;
+function brokerReceiptTotalPaise_(receipts, shipmentId) {
+  return receipts.reduce(function(total, receipt) {
+    if (receipt.shipmentId !== shipmentId) return total;
+    var amount = brokerParseMoney_(receipt.receivedAmount, false);
+    if (!amount.ok || amount.paise <= 0) throw new Error('A received-payment row has an invalid amount.');
+    return total + amount.paise;
+  }, 0);
 }
 
-function brokerAssertRecoveriesCompatible_(spreadsheet, record, shipmentId) {
-  var recoveries = brokerReadRecoveries_(brokerEnsureRecoverySheet_(spreadsheet));
-  var existing = recoveries.filter(function(recovery) { return recovery.shipmentId === shipmentId; });
-  if (!existing.length) return;
+function brokerAssertReceiptsCompatible_(spreadsheet, record, shipmentId) {
+  var receipts = brokerReadReceipts_(brokerEnsureReceiptSheet_(spreadsheet))
+    .filter(function(receipt) { return receipt.shipmentId === shipmentId; });
+  if (!receipts.length) return;
   if (record.toPayStatus !== 'TOBILLED') {
-    throw new Error('This shipment has recovery transactions. Its status cannot be changed from TOBILLED.');
+    throw new Error('This shipment has received payments. Its status cannot be changed from TOBILLED.');
   }
-  var totals = brokerRecoveryTotals_(existing, shipmentId);
   var calculated = brokerCalculate_(record);
-  var available = {
-    pendingTobilled: Math.round(calculated.pendingTobilled * 100),
-    pendingAmount: Math.round(calculated.pendingAmount * 100)
-  };
-  Object.keys(totals).forEach(function(category) {
-    if (available[category] < totals[category]) {
-      throw new Error('These edits would reduce ' + BROKER_RECOVERY_CATEGORIES[category] +
-        ' below amounts already recovered. Reverse or correct the recovery first.');
-    }
-  });
+  var pendingPaise = Math.round(calculated.pendingAmount * 100);
+  if (pendingPaise < brokerReceiptTotalPaise_(receipts, shipmentId)) {
+    throw new Error('These edits would reduce Pending Amount below payments already received.');
+  }
 }
 
-function brokerCreateRecovery_(spreadsheet, session, source) {
-  if (!source || typeof source !== 'object' || Array.isArray(source)) throw new Error('Recovery data must be an object.');
+function brokerCreateReceipt_(spreadsheet, session, source) {
+  if (!source || typeof source !== 'object' || Array.isArray(source)) throw new Error('Received-payment data must be an object.');
   var shipmentId = String(source.shipmentId || '').trim();
   var idempotencyKey = String(source.idempotencyKey || '').trim();
-  if (!/^[a-f0-9-]{36}$/i.test(idempotencyKey)) throw new Error('A valid recovery request ID is required.');
-  var category = String(source.category || '');
-  if (!Object.prototype.hasOwnProperty.call(BROKER_RECOVERY_CATEGORIES, category)) {
-    throw new Error('Choose a supported TOBILLED recovery category.');
-  }
+  if (!/^[a-f0-9-]{36}$/i.test(idempotencyKey)) throw new Error('A valid received-payment request ID is required.');
   var amount = brokerParseMoney_(source.receivedAmount, false);
   if (!amount.ok || amount.paise <= 0) throw new Error('Received amount must be greater than zero and have no more than 2 decimal places.');
-  var recoveryDate = brokerNormalizeDate_(source.receivedDate, 'Recovery date');
+  var receivedDate = brokerNormalizeDate_(source.receivedDate, 'Received date');
   var paymentMode = String(source.paymentMode || '').trim();
   if (['Cash', 'Bank Transfer', 'UPI', 'Other'].indexOf(paymentMode) < 0) {
-    throw new Error('Choose a supported recovery payment mode.');
+    throw new Error('Choose a supported payment mode.');
   }
-  var transactionReference = String(source.transactionReference || '').trim();
-  var remarks = String(source.remarks || '').trim();
-  if (transactionReference.length > 120) throw new Error('Transaction reference exceeds 120 characters.');
-  if (remarks.length > 500) throw new Error('Recovery remarks exceed 500 characters.');
+  var reference = String(source.transactionReference || '').trim();
+  if (reference.length > 120) throw new Error('Transaction reference exceeds 120 characters.');
 
-  var recoverySheet = brokerEnsureRecoverySheet_(spreadsheet);
-  var recoveries = brokerReadRecoveries_(recoverySheet);
-  var prior = recoveries.find(function(item) { return item.idempotencyKey === idempotencyKey; });
+  var receiptSheet = brokerEnsureReceiptSheet_(spreadsheet);
+  var receipts = brokerReadReceipts_(receiptSheet);
+  var prior = receipts.find(function(item) { return item.idempotencyKey === idempotencyKey; });
   if (prior) {
-    var sameRequest = (prior.type || 'RECOVERY') === 'RECOVERY' &&
-      prior.shipmentId === shipmentId &&
-      prior.category === category &&
+    var isSameRequest = prior.shipmentId === shipmentId &&
       String(prior.receivedAmount) === String(amount.paise / 100) &&
-      prior.recoveryDate === recoveryDate &&
-      prior.paymentMode === paymentMode &&
-      prior.transactionReference === transactionReference &&
-      prior.remarks === remarks;
-    if (!sameRequest) throw new Error('This recovery request ID was already used for different payment data.');
-    return { recovery: prior, duplicate: true, warning: '' };
+      prior.receivedDate === receivedDate && prior.paymentMode === paymentMode &&
+      String(prior.transactionReference || '') === reference;
+    if (!isSameRequest) throw new Error('This payment request ID was already used for different data.');
+    return { receipt: prior, duplicate: true, warning: '' };
   }
-  if (transactionReference && recoveries.some(function(item) {
+  if (reference && receipts.some(function(item) {
     return item.shipmentId === shipmentId &&
-      String(item.transactionReference || '').trim().toLowerCase() === transactionReference.toLowerCase() &&
-      (item.type || 'RECOVERY') === 'RECOVERY';
-  })) {
-    throw new Error('This transaction reference is already recorded for the shipment.');
-  }
+      String(item.transactionReference || '').trim().toLowerCase() === reference.toLowerCase();
+  })) throw new Error('This transaction reference is already recorded for the shipment.');
 
   var shipmentSheet = spreadsheet.getSheetByName(BROKER_SHEET_NAME);
   var shipment = brokerReadRecords_(shipmentSheet).find(function(item) { return item.id === shipmentId; });
-  if (!shipment) throw new Error('The shipment for this recovery was not found. Reload the ledger and try again.');
-  if (shipment.toPayStatus !== 'TOBILLED') throw new Error('Recovery is currently supported only for TOBILLED balances.');
+  if (!shipment) throw new Error('Shipment not found. Reload the ledger and try again.');
+  if (shipment.toPayStatus !== 'TOBILLED') throw new Error('Received payments can be recorded only for TOBILLED shipments.');
   var calculated = brokerCalculate_(shipment);
-  var originalPending = Math.round(calculated[category] * 100);
-  if (originalPending <= 0) throw new Error('There is no positive balance available for this recovery category.');
-  var totals = brokerRecoveryTotals_(recoveries, shipmentId);
-  var remainingBefore = originalPending - totals[category];
-  if (remainingBefore <= 0) throw new Error('No positive outstanding balance remains for this recovery category.');
-  if (amount.paise > remainingBefore) {
-    throw new Error('Recovery exceeds the current outstanding amount of ₹' + (remainingBefore / 100).toLocaleString('en-IN') + '.');
+  var originalPendingPaise = Math.round(calculated.pendingAmount * 100);
+  var totalReceivedPaise = brokerReceiptTotalPaise_(receipts, shipmentId);
+  var remainingBeforePaise = originalPendingPaise - totalReceivedPaise;
+  if (remainingBeforePaise <= 0) throw new Error('No positive Pending Amount remains for this shipment.');
+  if (amount.paise > remainingBeforePaise) {
+    throw new Error('Received amount exceeds the remaining Pending Amount of ₹' + (remainingBeforePaise / 100).toLocaleString('en-IN') + '.');
   }
 
-  var recovery = {
+  var receipt = {
     id: Utilities.getUuid(),
     idempotencyKey: idempotencyKey,
-    type: 'RECOVERY',
     shipmentId: shipmentId,
     lrNo: String(shipment.lrNo || ''),
     partyName: String(shipment.transportName || ''),
-    category: category,
-    categoryLabel: BROKER_RECOVERY_CATEGORIES[category],
-    originalPending: originalPending / 100,
     receivedAmount: amount.paise / 100,
-    recoveryDate: recoveryDate,
+    receivedDate: receivedDate,
     paymentMode: paymentMode,
-    transactionReference: transactionReference,
-    remainingPending: (remainingBefore - amount.paise) / 100,
-    recoveryStatus: remainingBefore === amount.paise ? 'FULLY RECEIVED' : 'PARTIALLY RECEIVED',
-    remarks: remarks,
+    transactionReference: reference,
+    remainingPending: (remainingBeforePaise - amount.paise) / 100,
+    status: amount.paise === remainingBeforePaise ? 'PAID' : 'PARTIAL',
     createdAt: new Date().toISOString(),
     createdBy: session.username
   };
-  brokerAppendRecovery_(recoverySheet, recovery);
-  var warning = brokerAudit_(spreadsheet, session, 'RECOVERY', recovery.id, recovery.lrNo + ' · ' + recovery.categoryLabel + ' · ' + recovery.receivedAmount);
-  brokerBumpVersion_();
-  return { recovery: recovery, duplicate: false, warning: warning };
-}
-
-function brokerReverseRecovery_(spreadsheet, session, source) {
-  if (!source || typeof source !== 'object' || Array.isArray(source)) throw new Error('Recovery reversal data must be an object.');
-  var recoveryId = String(source.recoveryId || '').trim();
-  var idempotencyKey = String(source.idempotencyKey || '').trim();
-  var reason = String(source.reason || '').trim();
-  if (!/^[a-f0-9-]{36}$/i.test(idempotencyKey)) throw new Error('A valid recovery reversal request ID is required.');
-  if (!recoveryId || !reason || reason.length > 500) throw new Error('A recovery transaction and correction reason are required.');
-  var reversalDate = brokerNormalizeDate_(source.reversalDate, 'Reversal date');
-  var recoverySheet = brokerEnsureRecoverySheet_(spreadsheet);
-  var recoveries = brokerReadRecoveries_(recoverySheet);
-  var prior = recoveries.find(function(item) { return item.idempotencyKey === idempotencyKey; });
-  if (prior) {
-    if ((prior.type || 'RECOVERY') !== 'REVERSAL' || prior.reversalOf !== recoveryId ||
-        prior.recoveryDate !== reversalDate || prior.remarks !== reason) {
-      throw new Error('This reversal request ID was already used for different transaction data.');
-    }
-    return { recovery: prior, duplicate: true, warning: '' };
-  }
-  var original = recoveries.find(function(item) { return item.id === recoveryId && (item.type || 'RECOVERY') === 'RECOVERY'; });
-  if (!original) throw new Error('The original recovery transaction was not found.');
-  if (recoveries.some(function(item) { return item.type === 'REVERSAL' && item.reversalOf === recoveryId; })) {
-    throw new Error('This recovery has already been reversed.');
-  }
-  var shipmentSheet = spreadsheet.getSheetByName(BROKER_SHEET_NAME);
-  var shipment = brokerReadRecords_(shipmentSheet).find(function(item) { return item.id === original.shipmentId; });
-  if (!shipment || shipment.toPayStatus !== 'TOBILLED') {
-    throw new Error('The shipment for this recovery is unavailable or no longer TOBILLED.');
-  }
-  var calculated = brokerCalculate_(shipment);
-  var originalPending = Math.round(calculated[original.category] * 100);
-  var totals = brokerRecoveryTotals_(recoveries, original.shipmentId);
-  var netAfterReversal = totals[original.category] - Math.round(Number(original.receivedAmount) * 100);
-  if (netAfterReversal < 0 || originalPending < netAfterReversal) {
-    throw new Error('This recovery cannot be reversed because the current balance would become inconsistent.');
-  }
-  var reversal = {
-    id: Utilities.getUuid(),
-    idempotencyKey: idempotencyKey,
-    type: 'REVERSAL',
-    reversalOf: original.id,
-    shipmentId: original.shipmentId,
-    lrNo: original.lrNo,
-    partyName: original.partyName,
-    category: original.category,
-    categoryLabel: original.categoryLabel,
-    originalPending: originalPending / 100,
-    receivedAmount: -Math.abs(Number(original.receivedAmount)),
-    recoveryDate: reversalDate,
-    paymentMode: 'Reversal',
-    transactionReference: original.id,
-    remainingPending: (originalPending - netAfterReversal) / 100,
-    recoveryStatus: 'REVERSED',
-    remarks: reason,
-    createdAt: new Date().toISOString(),
-    createdBy: session.username
-  };
-  brokerAppendRecovery_(recoverySheet, reversal);
-  var warning = brokerAudit_(spreadsheet, session, 'RECOVERY_REVERSAL', reversal.id, original.id + ' · ' + reason);
-  brokerBumpVersion_();
-  return { recovery: reversal, duplicate: false, warning: warning };
-}
-
-function brokerAppendRecovery_(sheet, recovery) {
   var row = [
-    recovery.id, brokerSafeSheetText_(recovery.idempotencyKey), recovery.shipmentId,
-    brokerSafeSheetText_(recovery.lrNo), brokerSafeSheetText_(recovery.partyName),
-    recovery.categoryLabel, recovery.originalPending, recovery.receivedAmount,
-    recovery.recoveryDate, recovery.paymentMode, brokerSafeSheetText_(recovery.transactionReference),
-    recovery.remainingPending, recovery.recoveryStatus, brokerSafeSheetText_(recovery.remarks),
-    recovery.createdAt, brokerSafeSheetText_(recovery.createdBy), JSON.stringify(recovery)
+    receipt.id, brokerSafeSheetText_(receipt.idempotencyKey), receipt.shipmentId,
+    brokerSafeSheetText_(receipt.lrNo), brokerSafeSheetText_(receipt.partyName),
+    receipt.receivedAmount, receipt.receivedDate, receipt.paymentMode,
+    brokerSafeSheetText_(receipt.transactionReference), receipt.remainingPending,
+    receipt.createdAt, brokerSafeSheetText_(receipt.createdBy), JSON.stringify(receipt)
   ];
-  sheet.appendRow(row);
+  receiptSheet.appendRow(row);
+  var warning = brokerAudit_(spreadsheet, session, 'RECEIPT', receipt.id,
+    receipt.lrNo + ' · ' + receipt.receivedAmount + ' · remaining ' + receipt.remainingPending);
+  brokerBumpVersion_();
+  return { receipt: receipt, duplicate: false, warning: warning };
 }
 
 function brokerSafeSheetText_(value) {
@@ -829,11 +698,6 @@ function brokerAudit_(spreadsheet, session, action, recordId, detail) {
   } catch (error) {
     return 'The data change succeeded, but its audit entry could not be written. Contact the administrator.';
   }
-}
-
-function brokerSafeSheetText_(value) {
-  var text = String(value);
-  return /^[=+\-@]/.test(text) ? "'" + text : text;
 }
 
 function brokerBumpVersion_() {

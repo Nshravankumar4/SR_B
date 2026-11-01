@@ -28,10 +28,11 @@ The Web App may need to be reachable by both users for Google Apps Script's Web 
 
 ## Updating and backups
 
-- Before adding recovery support to an existing deployment, create and verify a dated backup of the current spreadsheet. Updating the backend does not migrate or rewrite shipment JSON; `setupBrokerLedger()` adds the new `Recoveries` sheet to the existing spreadsheet.
+- Before updating an existing deployment, create and verify a dated backup of the current spreadsheet. Updating the backend does not migrate or rewrite shipment JSON. Existing `Recoveries` tabs, if any, are left untouched and are no longer read or modified by this app.
+- The new payment-received feature writes only to a separate `Receipts` tab. `setupBrokerLedger()` creates that tab if it is missing, validates its header if it exists, and does not clear or rewrite existing shipment/payment data.
 - To update backend code, save the Apps Script project, create a **new version**, and update the deployment. The spreadsheet ID and records remain stored in Script Properties and the existing spreadsheet.
-- After replacing `Code.gs`, run `setupBrokerLedger()` once against the existing Script Properties and confirm the new `Recoveries` sheet exists before updating the Web App deployment.
-- The frontend requires `getAll` to return both `records` and `recoveries`. Deploy the frontend and backend changes together; an older deployed backend will show an explicit recovery-history deployment error.
+- After replacing `Code.gs`, run `setupBrokerLedger()` once against the existing Script Properties and confirm the `Shipments` data remains before updating the Web App deployment.
+- Deploy the frontend and backend changes together so the live app uses the same calculation and API behavior.
 - The app's administrator backup operation creates a dated copy of the Google spreadsheet in the deployment owner's Drive. Verify that Drive permissions and retention meet your needs.
 - To restore, use Google Drive/Sheets to recover a backup. This project intentionally does not expose an unauthenticated restore endpoint.
 

@@ -18,27 +18,15 @@ Pending Amount = Pending Amount: Tobilled + Extra Amount - P/M
 For `A/TO-PAY` and `F/TO-PAY`, COD / To-Pay is calculated as `FRIGHT - T/M - ADVANCE - ADVANCE2 - ADVANCE3`. Final Pending Amount is `FRIGHT - T/M - ADVANCE - COD`; this evaluates to `ADVANCE2 + ADVANCE3`, and is zero for the current workbook rows because both fields are zero. Pending Amount: Tobilled is left blank for those statuses.
 
 No automatic floor is applied. A negative result remains negative.
+For example, FRIGHT ₹65,000 and ADVANCE ₹65,000 give Pending Amount: Tobilled ₹0; entering P/M ₹500 makes final Pending Amount −₹500.
 
-## Pending recovery ledger
-
-Recovery is a separate transaction ledger; it never replaces source shipment amounts or derived calculation fields. The selected recovery categories are the two TOBILLED outputs above, tracked independently:
-
-- `pendingTobilled`: Pending Amount: Tobilled, before Extra Amount and P/M.
-- `pendingAmount`: final Pending Amount, after Extra Amount and P/M.
-
-These are overlapping calculation bases, not additive liabilities. The dashboard and party report display them separately and do not calculate one combined recovery total. Recovery is currently restricted to TOBILLED shipments; COD / To-Pay and A/TO-PAY/F/TO-PAY balances are not recovery categories.
-
-For each category:
+For TOBILLED shipments, recorded payments received are tracked separately and reduce the displayed outstanding balance:
 
 ```text
-Remaining Pending = current calculated category amount - signed recovery transactions
+Remaining Pending Amount = formula-derived Pending Amount - total recorded receipts
 ```
 
-Amounts are stored as rupees and calculated in integer paise. A positive recovery is checked against the current outstanding amount by the server while holding the Apps Script lock. Duplicate requests use an idempotency key. A correction appends a negative REVERSAL linked to the original recovery; existing recovery rows are never overwritten or deleted. Changing a shipment so that existing recoveries exceed its newly calculated amount is rejected.
-
-The shipment form and JSON record continue to hold the original formula-derived amounts. The ledger, dashboard, pending filters, and Excel export display outstanding amounts after net recoveries; the recovery dialog and transaction snapshots retain the original amount, recovered total, and remaining amount for each category.
-
-The `Recoveries` sheet is separate from the existing JSON-backed `Shipments` sheet. Each row has readable recovery columns plus a JSON snapshot containing the exact transaction, idempotency key, category, shipment, party, received date, mode, reference, amount, remaining amount, status, remarks, and audit metadata.
+Receipts do not alter the source amounts or workbook formulas. A receipt must be positive and cannot exceed the positive remaining balance. Negative formula-derived balances remain negative.
 
 ## COD / To-Pay
 
