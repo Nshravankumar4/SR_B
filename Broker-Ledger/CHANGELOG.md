@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Enforced unique LR Nos across shipments, with a live form warning, submit-time rejection, import duplicate detection, and backend validation.
 - Added live received-payment previews that update Received, Remaining, and Status while entering an amount; previews are not saved before submission.
 - Added TOBILLED received-payment history with audited reversals; a reversal restores the shipment balance without deleting the original receipt.
 - Kept legacy POD Amount Status data for import/edit compatibility while removing its form and spreadsheet display; payment status remains separately calculated.

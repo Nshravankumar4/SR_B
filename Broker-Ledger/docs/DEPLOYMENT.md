@@ -46,6 +46,7 @@ The Web App may need to be reachable by both users for Google Apps Script's Web 
 - Publish the latest `index.html` and `Broker-Ledger/` assets for dashboard Done/Pending filters and the ledger/sheet receipt columns. Receipt entries continue to use the existing `Receipts` backend tab.
 - Live receipt-entry balance previews are a frontend-only change; publish the latest `index.html` and `Broker-Ledger/js/` assets. No Apps Script redeployment or spreadsheet migration is required for this preview.
 - For receipt reversal and blank POD Amount / Status handling, copy the current `backend/Code.gs` into the existing Apps Script project, save, run `setupBrokerLedger()` if the project setup/schema needs verification, and deploy a new Web App version. Then publish the updated repository-root `index.html` and `Broker-Ledger/` assets; the existing deployment URL should remain the configured backend URL.
+- Unique LR No validation is enforced by both the form and Apps Script backend. Copy the current `backend/Code.gs` to the existing Apps Script project and deploy a new Web App version, then publish the updated `index.html` and `Broker-Ledger/` assets. The configured `/exec` URL can remain unchanged when updating the existing deployment.
 - Any signed-in user can create a dated copy of the Google spreadsheet in the deployment owner's Drive. Verify that Drive permissions and retention meet your needs.
 - To restore, use Google Drive/Sheets to recover a backup. This project intentionally does not expose an unauthenticated restore endpoint.
 

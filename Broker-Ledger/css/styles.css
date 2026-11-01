@@ -330,6 +330,12 @@ button:active:not(:disabled), .btn:active:not(:disabled), .nav-tab:active, .user
   color: #334155;
   letter-spacing: 0.01em;
 }
+.lr-duplicate-warning:not([hidden]) {
+  display: block;
+  color: #b91c1c;
+  font-size: 0.75rem;
+  font-weight: 650;
+}
 .required {
   color: #ef4444;
   font-weight: 800;

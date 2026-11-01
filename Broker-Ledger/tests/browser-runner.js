@@ -139,24 +139,23 @@
     rows[3].codToPay = 'stale';
     equal(c.summarize(rows).codToPayPaise, 8200000);
   });
-  check('duplicate detection identifies matching LR No, date, and truck while allowing editing', function () {
+  check('duplicate detection rejects repeated LR No regardless of date or truck while allowing editing', function () {
     const existing = [
       { id: 'rec-1', lrNo: 'LR-100', date: '2026-10-27', truckNo: 'AP39UD3564' },
       { id: 'rec-2', lrNo: 'LR-101', date: '2026-10-28', truckNo: 'TG15T6666' }
     ];
     function isDup(candidate, editingId) {
-      const candidateKey = [candidate.lrNo, candidate.date, candidate.truckNo].map(function (v) { return String(v || '').trim().toLowerCase(); }).join('|');
+      const candidateKey = String(candidate.lrNo || '').trim().toLowerCase();
       return existing.some(function (item) {
         if (editingId && item.id === editingId) return false;
-        const itemKey = [item.lrNo, item.date, item.truckNo].map(function (v) { return String(v || '').trim().toLowerCase(); }).join('|');
+        const itemKey = String(item.lrNo || '').trim().toLowerCase();
         return itemKey === candidateKey;
       });
     }
     equal(isDup({ lrNo: 'LR-100', date: '2026-10-27', truckNo: 'AP39UD3564' }, null), true);
-    equal(isDup({ lrNo: ' lr-100 ', date: '2026-10-27', truckNo: 'ap39ud3564' }, null), true);
+    equal(isDup({ lrNo: ' lr-100 ', date: '2026-10-29', truckNo: 'different-truck' }, null), true);
     equal(isDup({ lrNo: 'LR-100', date: '2026-10-27', truckNo: 'AP39UD3564' }, 'rec-1'), false);
     equal(isDup({ lrNo: 'LR-102', date: '2026-10-27', truckNo: 'AP39UD3564' }, null), false);
-    equal(isDup({ lrNo: 'LR-100', date: '2026-10-29', truckNo: 'AP39UD3564' }, null), false);
   });
   check('form status changes preserve advance, deduction, and note values without destructive clearing', function () {
     const original = {

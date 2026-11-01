@@ -719,7 +719,7 @@ function brokerImport_(spreadsheet, sheet, session, incoming) {
   var prepared = incoming.map(function(item) { return brokerValidateAndCalculate_(item); });
   prepared.forEach(function(record) {
     var identity = brokerIdentity_(record);
-    if (!identity || seen[identity]) throw new Error('Import stopped: a shipment with the same LR No, date, and truck already exists.');
+    if (!identity || seen[identity]) throw new Error('Import stopped: LR No ' + record.lrNo + ' is already used. Every shipment must have a unique LR No.');
     seen[identity] = true;
   });
   var nextSlNo = brokerNextSlNo_(existing);
@@ -743,17 +743,15 @@ function brokerImport_(spreadsheet, sheet, session, incoming) {
 }
 
 function brokerIdentity_(record) {
-  return [record.lrNo, record.date, record.truckNo].map(function(value) {
-    return String(value || '').trim().toLowerCase();
-  }).join('|');
+  return String(record && record.lrNo || '').trim().toLowerCase();
 }
 
 function brokerAssertUnique_(record, records, exceptId) {
   var identity = brokerIdentity_(record);
   var duplicate = records.some(function(item) {
-    return item.id !== exceptId && brokerIdentity_(item) === identity;
+    return identity && item.id !== exceptId && brokerIdentity_(item) === identity;
   });
-  if (duplicate) throw new Error('A shipment with this LR No, date, and truck already exists.');
+  if (duplicate) throw new Error('LR No ' + record.lrNo + ' is already used by another shipment. Every shipment must have a unique LR No.');
 }
 
 function brokerNextSlNo_(records) {

@@ -18,7 +18,7 @@ powershell -ExecutionPolicy Bypass -Command "& '.\verify_broker_ledger.ps1'; & '
    - Form datalist bindings and autocomplete.
    - Non-destructive bank autofill.
    - Status preservation across TOBILLED, A/TO-PAY, and F/TO-PAY.
-   - Compound duplicate key collision prevention (`LR No + Date + Truck No`).
+   - LR No uniqueness is case/whitespace-insensitive and applies across different dates/trucks; the form warns while typing, rejects on submit, and the backend enforces the same rule for create/update/import.
    - Double-click submission prevention.
    - Exact mathematical formula verification against workbook test rows.
    - POD Balance Amount / Status remains blank unless supplied, while the separate calculated payment-status display updates from pending and receipt totals.

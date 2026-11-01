@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0f172a">
   <meta name="description" content="SR Brokerage Ledger shipment and financial tracking application">
   <title>SR Brokerage Ledger</title>
-  <link rel="stylesheet" href="Broker-Ledger/css/styles.css?v=20261101-5">
+  <link rel="stylesheet" href="Broker-Ledger/css/styles.css?v=20261101-6">
   <script src="Broker-Ledger/libs/exceljs.min.js"></script>
   <script src="Broker-Ledger/libs/FileSaver.min.js"></script>
   <script src="Broker-Ledger/libs/xlsx.full.min.js"></script>
@@ -15,7 +15,7 @@
   <script defer src="Broker-Ledger/js/receipts.js?v=20261101-6"></script>
   <script defer src="Broker-Ledger/js/validation.js"></script>
   <script defer src="Broker-Ledger/js/api.js"></script>
-  <script defer src="Broker-Ledger/js/app.js?v=20261101-11"></script>
+  <script defer src="Broker-Ledger/js/app.js?v=20261101-12"></script>
 </head>
 <body>
   <noscript><p class="noscript">Broker Ledger requires JavaScript to run.</p></noscript>
@@ -150,6 +150,7 @@
           <label class="form-field">
             <span class="field-label">LR No <span class="required">*</span></span>
             <input name="lrNo" maxlength="60" placeholder="e.g. 207" required>
+            <span id="lr-duplicate-warning" class="field-error" role="alert" hidden></span>
           </label>
           <label class="form-field">
             <span class="field-label">Truck No <span class="required">*</span></span>

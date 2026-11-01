@@ -1011,8 +1011,28 @@
     return record;
   }
 
+  function duplicateLrRecord(record) {
+    const lrNo = String(record && record.lrNo || '').trim().toLowerCase();
+    if (!lrNo) return null;
+    return state.records.find(function (item) {
+      if (state.editingId && item.id === state.editingId) return false;
+      return String(item.lrNo || '').trim().toLowerCase() === lrNo;
+    }) || null;
+  }
+
+  function updateLrDuplicateWarning() {
+    const warning = byId('lr-duplicate-warning');
+    if (!warning) return;
+    const record = duplicateLrRecord(formRecord());
+    warning.textContent = record
+      ? 'This LR No is already used by shipment ' + (record.lrNo || '') + '. Enter a unique LR No.'
+      : '';
+    warning.hidden = !record;
+  }
+
   function updateFormCalculations() {
     if (!byId('shipment-form')) return;
+    updateLrDuplicateWarning();
     const form = byId('shipment-form');
     const codInput = form.elements.codToPay;
     const status = CALC.normalizeStatus(form.elements.toPayStatus.value);
@@ -1147,6 +1167,7 @@
     byId('cancel-dialog').textContent = isView ? 'Close' : 'Cancel';
     byId('shipment-dialog-title').textContent = isView ? 'Shipment Details' : (existing ? 'Edit Shipment' : 'Add Shipment');
     byId('form-error').hidden = true;
+    updateLrDuplicateWarning();
     byId('shipment-dialog').showModal();
   }
 
@@ -1401,19 +1422,9 @@
       return;
     }
 
-    // Client-side duplicate check (LR No + Date + Truck No)
-    const recordIdentity = [record.lrNo, record.date, record.truckNo].map(function (v) {
-      return String(v || '').trim().toLowerCase();
-    }).join('|');
-    const isDuplicate = state.records.some(function (item) {
-      if (state.editingId && item.id === state.editingId) return false;
-      const itemIdentity = [item.lrNo, item.date, item.truckNo].map(function (v) {
-        return String(v || '').trim().toLowerCase();
-      }).join('|');
-      return itemIdentity === recordIdentity;
-    });
-    if (isDuplicate) {
-      const message = 'A shipment with this LR No, date, and truck already exists.';
+    const duplicate = duplicateLrRecord(record);
+    if (duplicate) {
+      const message = 'LR No ' + record.lrNo + ' is already used by another shipment. Enter a unique LR No.';
       errorBox.textContent = message;
       errorBox.hidden = false;
       toast(message, 'error');
@@ -1746,9 +1757,7 @@
     return text;
   }
   function recordIdentity(record) {
-    return [record.lrNo, formatDate(record.date), record.truckNo].map(function (item) {
-    return String(item || '').trim().toLowerCase();
-    }).join('|');
+    return String(record && record.lrNo || '').trim().toLowerCase();
   }
   function rowToRecord(row, headers) {
     const record = {};
@@ -1814,7 +1823,7 @@
     state.pendingImport = {
     records: records,
     duplicates: duplicates,
-    error: duplicates.length ? 'Duplicate shipment identity found. Remove duplicates from this workbook before importing.' : ''
+    error: duplicates.length ? 'Duplicate LR No found. Every shipment in the ledger must have a unique LR No.' : ''
     };
     render();
   }

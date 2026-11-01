@@ -195,3 +195,32 @@ test('shipment validation preserves a blank or user-entered POD amount/status', 
   source.podAmountStatus = 'POD received';
   assert.equal(backend.context.brokerValidateAndCalculate_(source).podAmountStatus, 'POD received');
 });
+
+test('shipment identity is LR No only and the backend rejects repeated LR Nos', function () {
+  const backend = createBackend([]);
+  const existing = [
+    { id: 'existing-1', lrNo: 'LR-100', date: '2026-10-27', truckNo: 'TRUCK-1' }
+  ];
+  assert.equal(backend.context.brokerIdentity_({ lrNo: ' lr-100 ' }), 'lr-100');
+  assert.throws(function () {
+    backend.context.brokerAssertUnique_(
+      { lrNo: 'LR-100', date: '2026-10-29', truckNo: 'TRUCK-2' },
+      existing,
+      null
+    );
+  }, /LR No LR-100 is already used/);
+  assert.doesNotThrow(function () {
+    backend.context.brokerAssertUnique_(
+      { lrNo: ' lr-100 ', date: '2026-10-27', truckNo: 'TRUCK-1' },
+      existing,
+      'existing-1'
+    );
+  });
+  assert.doesNotThrow(function () {
+    backend.context.brokerAssertUnique_(
+      { lrNo: 'LR-101', date: '2026-10-27', truckNo: 'TRUCK-1' },
+      existing,
+      null
+    );
+  });
+});

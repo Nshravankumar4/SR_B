@@ -73,6 +73,14 @@ $t26 = $appJs.Contains("ExcelJS styled export error") -eq $false -and `
        $appJs.Contains("paymentStatus: receiptDetails.paymentStatus") -and `
        $appJs.Contains("field === 'paymentStatus' && cell.value") -and `
        $appJs.Contains("receivedAmount: 'Received Amount'")
+$t27 = $appJs.Contains("function duplicateLrRecord(record)") -and `
+       $appJs.Contains("updateLrDuplicateWarning();") -and `
+       $appJs.Contains("Enter a unique LR No.") -and `
+       $appJs.Contains("const lrNo = String(record && record.lrNo || '').trim().toLowerCase();") -and `
+       $codeGs.Contains("return String(record && record.lrNo || '').trim().toLowerCase();") -and `
+       $codeGs.Contains("Every shipment must have a unique LR No.") -and `
+       $html.Contains('id="lr-duplicate-warning"') -and `
+       $css.Contains(".lr-duplicate-warning:not([hidden])")
 
 $results = @(
   @{ Name = "1. Form: 1st Advance Given Date separate input"; Ok = $t1 },
@@ -100,7 +108,8 @@ $results = @(
   @{ Name = "23. UI/export: POD Amount Status column hidden while underlying data is retained"; Ok = $t23 },
   @{ Name = "24. UI: Successful shipment saves close the dialog and failures show an error"; Ok = $t24 },
   @{ Name = "25. Payments: Received amount previews live and applies only after confirmation"; Ok = $t25 },
-  @{ Name = "26. Export: Styled downloads include Live Excel Sheet receipt summary columns"; Ok = $t26 }
+  @{ Name = "26. Export: Styled downloads include Live Excel Sheet receipt summary columns"; Ok = $t26 },
+  @{ Name = "27. Shipment form and backend reject duplicate LR Nos"; Ok = $t27 }
 )
 
 $passed = 0

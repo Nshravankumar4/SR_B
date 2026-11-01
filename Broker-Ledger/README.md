@@ -18,6 +18,7 @@ The application starts with an empty ledger. The example shipments in `tests/fix
 - Tracks received TOBILLED payments in a separate append-only ledger; the payment dialog previews live balances as amounts are entered, and signed-in users can reverse mistaken receipts without erasing history.
 - Shows the receipt amount and derived payment status in the shipment form, with full Received / Remaining / Status details in the payment dialog. Blank POD fields remain blank.
 - Shows Done / Pending shipment counts on the dashboard and lets users open filtered records in the Live Excel Sheet; the ledger and sheet also show received total, latest receipt date/mode, and payment status.
+- Requires each shipment to have a unique LR No; duplicate entries are flagged in the form and rejected by the backend, including imports.
 - Excel/CSV import with preview and duplicate checks; styled ExcelJS export matching the application theme (colored headers, alternating rows, totals, frozen panes). Export failure is reported rather than silently downloading an unstyled workbook.
 - Live Excel Sheet full-ledger view with real-time dynamic column totals.
 - Dashboard with Total Ledger Closing outstanding metric and Transporter Pending Balance Payments panel.
