@@ -285,35 +285,45 @@
           <h3 id="bank-pod-title" class="form-section-title"><span>🏦 Bank &amp; POD Details</span></h3>
           <button id="clear-bank-pod-details" class="btn btn-secondary btn-sm btn-clear-section" type="button" title="Clear bank and POD details only">Clear Bank &amp; POD Details</button>
         </div>
-        <div class="form-grid">
-          <label class="form-field">
-            <span class="field-label">Account No</span>
-            <input name="accountNo" list="account-suggestions" maxlength="40" autocomplete="off" placeholder="Bank account number">
-          </label>
-          <label class="form-field">
-            <span class="field-label">IFSC</span>
-            <input name="ifscCode" list="ifsc-suggestions" maxlength="20" autocapitalize="characters" placeholder="e.g. SBIN0010659" style="text-transform: uppercase;">
-          </label>
-          <label class="form-field">
-            <span class="field-label">Bank</span>
-            <input name="bank" list="bank-suggestions" maxlength="100" placeholder="Bank name / payment mode">
-          </label>
-          <label class="form-field">
-            <span class="field-label">POD received date</span>
-            <input name="podReceivedDate" type="date">
-          </label>
-          <label class="form-field">
-            <span class="field-label">Balance Date</span>
-            <input name="balanceDate" type="date">
-          </label>
-          <label class="form-field">
-            <span class="field-label">POD Balance Amount / Status</span>
-            <input name="podAmountStatus" maxlength="100" placeholder="Status or note">
-          </label>
-          <label class="form-field form-span">
-            <span class="field-label">Remarks</span>
-            <input name="remarks" maxlength="500" placeholder="Optional notes">
-          </label>
+        <div class="bank-pod-groups">
+          <section class="details-subsection" aria-labelledby="bank-details-subtitle">
+            <h4 id="bank-details-subtitle" class="details-subtitle">Bank details</h4>
+            <div class="details-grid">
+              <label class="form-field">
+                <span class="field-label">Account No</span>
+                <input name="accountNo" list="account-suggestions" maxlength="40" autocomplete="off" placeholder="Bank account number">
+              </label>
+              <label class="form-field">
+                <span class="field-label">IFSC</span>
+                <input name="ifscCode" list="ifsc-suggestions" maxlength="20" autocapitalize="characters" placeholder="e.g. SBIN0010659" style="text-transform: uppercase;">
+              </label>
+              <label class="form-field">
+                <span class="field-label">Bank</span>
+                <input name="bank" list="bank-suggestions" maxlength="100" placeholder="Bank name / payment mode">
+              </label>
+            </div>
+          </section>
+          <section class="details-subsection" aria-labelledby="pod-details-subtitle">
+            <h4 id="pod-details-subtitle" class="details-subtitle">POD and balance details</h4>
+            <div class="details-grid">
+              <label class="form-field">
+                <span class="field-label">POD received date</span>
+                <input name="podReceivedDate" type="date">
+              </label>
+              <label class="form-field">
+                <span class="field-label">Balance Date</span>
+                <input name="balanceDate" type="date">
+              </label>
+              <label class="form-field">
+                <span class="field-label">POD Balance Amount / Status</span>
+                <input name="podAmountStatus" maxlength="100" placeholder="Status or note">
+              </label>
+              <label class="form-field details-grid-span">
+                <span class="field-label">Remarks</span>
+                <input name="remarks" maxlength="500" placeholder="Optional notes">
+              </label>
+            </div>
+          </section>
         </div>
       </section>
       <section class="form-section calculation-section" aria-labelledby="calculation-title">
@@ -332,7 +342,7 @@
           </label>
         </div>
         <div class="receipt-summary-row">
-          <p id="receipt-balance-summary" class="calculation-hint" hidden></p>
+          <div id="receipt-balance-summary" class="receipt-balance-cards" hidden></div>
           <button id="btn-record-receipt" class="btn btn-secondary btn-sm" type="button" hidden>＋ Record Payment Received</button>
         </div>
         <div class="calculation-hint">Pending Amount: Tobilled follows the workbook formula. TOBILLED payments received reduce the final Pending Amount; COD / To-Pay text notes are preserved.</div>
@@ -354,8 +364,9 @@
       <p id="receipt-shipment-meta" class="toolbar-help"></p>
       <div id="receipt-error" class="notice notice-error" role="alert" hidden></div>
       <div id="receipt-balance" class="calculation-hint"></div>
-      <section class="form-section" aria-labelledby="receipt-entry-title">
+      <section id="receipt-entry-section" class="form-section" aria-labelledby="receipt-entry-title">
         <h3 id="receipt-entry-title" class="form-section-title">Payment details</h3>
+        <p id="receipt-entry-help" class="toolbar-help"></p>
         <div class="form-grid">
           <label class="form-field">
             <span class="field-label">Amount received (₹) <span class="required">*</span></span>

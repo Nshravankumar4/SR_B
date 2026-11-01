@@ -27,6 +27,7 @@ Remaining Pending Amount = formula-derived Pending Amount - total recorded recei
 ```
 
 Receipts do not alter the source amounts or workbook formulas. A receipt must be positive and cannot exceed the positive remaining balance. Negative formula-derived balances remain negative.
+An administrator can undo a mistaken receipt by appending an audited reversal; the original receipt is retained and the reversed amount is added back to the remaining balance.
 
 ## COD / To-Pay
 

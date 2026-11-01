@@ -25,6 +25,7 @@
     sortDirection: 1,
     toastTimer: null,
     sheetFilter: null,
+    receiptStatusFilter: 'ALL',
     receiptShipmentId: null,
     receiptRequestKey: ''
   };
@@ -191,7 +192,17 @@
     button.hidden = !eligible;
     if (!eligible) return;
     const totals = receiptTotals(record);
-    summary.textContent = receiptSummaryText(record);
+    if (!totals) {
+      summary.textContent = receiptSummaryText(record);
+    } else {
+      summary.innerHTML =
+        '<span class="receipt-balance-card"><small>Original pending</small><strong>' +
+        escapeHtml(formatMoneyPaise(totals.originalPaise)) + '</strong></span>' +
+        '<span class="receipt-balance-card"><small>Received</small><strong>' +
+        escapeHtml(formatMoneyPaise(totals.receivedPaise)) + '</strong></span>' +
+        '<span class="receipt-balance-card remaining"><small>Remaining</small><strong>' +
+        escapeHtml(formatMoneyPaise(totals.remainingPaise)) + '</strong></span>';
+    }
     button.disabled = !totals || totals.remainingPaise <= 0 || state.preview || state.formMode !== 'view';
     button.title = button.disabled ? 'No positive TOBILLED balance is available to receive.' : '';
   }
@@ -524,16 +535,24 @@
       }
       return '<div class="empty-state"><strong>No shipments yet</strong><p>Add a shipment or import an Excel workbook to begin.</p></div>';
     }
-    const heads = FIELD_ORDER.map(function (field) { return headerCell(field, actions); }).join('') + (actions ? '<th>Actions</th>' : '');
+    const heads = FIELD_ORDER.map(function (field) { return headerCell(field, actions); }).join('') +
+      (actions ? '<th>View</th><th>Payments</th><th>Edit</th><th>Delete</th>' : '');
     const rows = records.map(function (record) {
       const cells = FIELD_ORDER.map(function (field) { return recordCell(record, field); }).join('');
-      const actionCell = actions ? '<td class="row-actions"><div class="view-actions">' +
-        '<button class="btn btn-secondary btn-sm" type="button" data-action="view" data-id="' + escapeHtml(record.id) + '" aria-label="View shipment">View</button>' +
-        (CALC.normalizeStatus(record.toPayStatus) === 'TOBILLED' && settlementValue(record, 'pendingAmount') > 0
-          ? '<button class="btn btn-secondary btn-sm" type="button" data-action="receipt" data-id="' + escapeHtml(record.id) + '">Receive Payment</button>' : '') +
-        (!state.preview ? '<button class="btn btn-secondary btn-sm" type="button" data-action="edit" data-id="' + escapeHtml(record.id) + '" aria-label="Edit shipment">Edit</button>' : '') +
-        (state.user && state.user.role === 'Admin' ? '<button class="btn btn-danger btn-sm" type="button" data-action="delete" data-id="' + escapeHtml(record.id) + '" aria-label="Delete shipment">Delete</button>' : '') +
-        '</div></td>' : '';
+      const eligibleForReceipts = CALC.normalizeStatus(record.toPayStatus) === 'TOBILLED';
+      const actionCell = actions
+        ? '<td class="row-action-cell"><button class="btn btn-secondary btn-sm" type="button" data-action="view" data-id="' +
+          escapeHtml(record.id) + '" aria-label="View shipment">View</button></td>' +
+          '<td class="row-action-cell">' + (eligibleForReceipts
+            ? '<button class="btn btn-secondary btn-sm" type="button" data-action="receipt" data-id="' +
+              escapeHtml(record.id) + '">Payments</button>' : '') + '</td>' +
+          '<td class="row-action-cell">' + (!state.preview
+            ? '<button class="btn btn-secondary btn-sm" type="button" data-action="edit" data-id="' +
+              escapeHtml(record.id) + '" aria-label="Edit shipment">Edit</button>' : '') + '</td>' +
+          '<td class="row-action-cell">' + (state.user && state.user.role === 'Admin'
+            ? '<button class="btn btn-danger btn-sm" type="button" data-action="delete" data-id="' +
+              escapeHtml(record.id) + '" aria-label="Delete shipment">Delete</button>' : '') + '</td>'
+        : '';
       return '<tr data-id="' + escapeHtml(record.id) + '">' + cells + actionCell + '</tr>';
     }).join('');
     return '<div class="table-wrap" tabindex="0" aria-label="Scrollable shipment table"><table class="ledger-table"><thead><tr>' + heads +
@@ -546,8 +565,13 @@
       '<div class="filter-control search-control"><label for="ledger-search">Search shipments</label><input id="ledger-search" type="search" placeholder="LR No, transporter, truck, route..." value="' + escapeHtml(filterValues.search) + '"></div>' +
       '<div class="filter-control"><label for="ledger-status">ToPayStatus</label><select id="ledger-status"><option value="ALL">All statuses</option>' +
       CALC.STATUS.map(function (status) { return '<option value="' + status + '"' + (filterValues.status === status ? ' selected' : '') + '>' + status + '</option>'; }).join('') +
+      '</select></div><div class="filter-control"><label for="ledger-receipt-status">Received payment</label><select id="ledger-receipt-status">' +
+      '<option value="ALL"' + (filterValues.receiptStatus === 'ALL' ? ' selected' : '') + '>All receipt statuses</option>' +
+      '<option value="NONE"' + (filterValues.receiptStatus === 'NONE' ? ' selected' : '') + '>No receipt</option>' +
+      '<option value="PARTIAL"' + (filterValues.receiptStatus === 'PARTIAL' ? ' selected' : '') + '>Partially received</option>' +
+      '<option value="PAID"' + (filterValues.receiptStatus === 'PAID' ? ' selected' : '') + '>Fully received</option>' +
       '</select></div></div><div class="view-actions"><button class="btn btn-secondary" type="button" data-action="clear-filters"' +
-      (filterValues.status === 'ALL' && !filterValues.search.trim() ? ' disabled' : '') + '>Clear filters</button><button class="btn btn-secondary" type="button" data-action="refresh">Refresh</button><button class="btn btn-secondary" type="button" data-action="export">Export Excel</button></div></div>' +
+      (filterValues.status === 'ALL' && filterValues.receiptStatus === 'ALL' && !filterValues.search.trim() ? ' disabled' : '') + '>Clear filters</button><button class="btn btn-secondary" type="button" data-action="refresh">Refresh</button><button class="btn btn-secondary" type="button" data-action="export">Export Excel</button></div></div>' +
       '<div class="table-meta"><span>' + state.filtered.length + ' shipment' + (state.filtered.length === 1 ? '' : 's') + ' in view</span>' +
       '<span>FRIGHT in view: <strong>' + formatMoneyPaise(filteredSummary.freightPaise) + '</strong> · Pending in view: <strong>' + formatMoneyPaise(filteredSummary.pendingAmountPaise) + '</strong></span></div>' +
       renderTable(state.filtered, true) + '</section>';
@@ -664,17 +688,30 @@
   function getFilterValues() {
     return {
       search: byId('ledger-search') ? byId('ledger-search').value : (state.search || ''),
-      status: byId('ledger-status') ? byId('ledger-status').value : (state.status || 'ALL')
+      status: byId('ledger-status') ? byId('ledger-status').value : (state.status || 'ALL'),
+      receiptStatus: byId('ledger-receipt-status') ? byId('ledger-receipt-status').value : (state.receiptStatusFilter || 'ALL')
     };
   }
   function applyFilters() {
     const filter = getFilterValues();
     state.search = filter.search;
     state.status = filter.status;
+    state.receiptStatusFilter = filter.receiptStatus;
     const query = filter.search.trim().toLowerCase();
     state.filtered = state.records.filter(function (record) {
       const statusMatches = filter.status === 'ALL' || record.toPayStatus === filter.status;
       if (!statusMatches) return false;
+      if (filter.receiptStatus !== 'ALL') {
+        if (CALC.normalizeStatus(record.toPayStatus) !== 'TOBILLED') return false;
+        const balance = receiptTotals(record);
+        if (!balance) return false;
+        const receiptStatusMatches = filter.receiptStatus === 'NONE'
+          ? balance.receivedPaise === 0
+          : filter.receiptStatus === 'PARTIAL'
+            ? balance.receivedPaise > 0 && balance.remainingPaise > 0
+            : balance.receivedPaise > 0 && balance.remainingPaise <= 0;
+        if (!receiptStatusMatches) return false;
+      }
       if (!query) return true;
       return ['transportName', 'lrNo', 'truckNo', 'from', 'to', 'accountNo', 'ifscCode', 'bank', 'remarks']
         .some(function (key) { return String(record[key] || '').toLowerCase().includes(query); });
@@ -1027,11 +1064,22 @@
       history.innerHTML = '<p class="empty-state">No payments have been recorded for this shipment.</p>';
       return;
     }
-    history.innerHTML = '<table class="ledger-table"><thead><tr><th>Date received</th><th class="numeric">Amount</th><th>Mode</th><th>Reference</th></tr></thead><tbody>' +
+    const reversedIds = new Set(receipts.filter(function (receipt) {
+      return receipt.type === 'REVERSAL';
+    }).map(function (receipt) { return receipt.reversalOf; }));
+    history.innerHTML = '<table class="ledger-table"><thead><tr><th>Date</th><th class="numeric">Amount</th><th>Mode</th><th>Reference</th><th>Status / Action</th></tr></thead><tbody>' +
       receipts.map(function (receipt) {
+        const isReversal = receipt.type === 'REVERSAL';
+        const wasReversed = reversedIds.has(receipt.id);
+        const status = isReversal ? 'Reversal' : wasReversed ? 'Reversed' : 'Recorded';
+        const action = !isReversal && !wasReversed && state.user && state.user.role === 'Admin'
+          ? '<button class="btn btn-danger btn-sm" type="button" data-action="reverse-receipt" data-id="' +
+            escapeHtml(receipt.id) + '">Undo</button>' : '';
+        const amount = (isReversal ? '−' : '') + displayMoney(receipt.receivedAmount);
         return '<tr><td>' + escapeHtml(formatDate(receipt.receivedDate)) + '</td><td class="numeric">' +
-          escapeHtml(displayMoney(receipt.receivedAmount)) + '</td><td>' + escapeHtml(receipt.paymentMode || '') +
-          '</td><td>' + escapeHtml(receipt.transactionReference || '') + '</td></tr>';
+          escapeHtml(amount) + '</td><td>' + escapeHtml(receipt.paymentMode || '') +
+          '</td><td>' + escapeHtml(receipt.transactionReference || '') + '</td><td>' +
+          escapeHtml(status) + (action ? ' ' + action : '') + '</td></tr>';
       }).join('') + '</tbody></table>';
   }
 
@@ -1042,10 +1090,6 @@
       return;
     }
     const balance = receiptTotals(shipment);
-    if (!balance || balance.remainingPaise <= 0) {
-      toast('No positive Pending Amount remains for this shipment.', 'error');
-      return;
-    }
     state.receiptShipmentId = shipment.id;
     state.receiptRequestKey = newIdempotencyKey();
     const form = byId('receipt-form');
@@ -1056,9 +1100,63 @@
     byId('receipt-shipment-meta').textContent =
       'LR No ' + (shipment.lrNo || '') + ' · ' + (shipment.transportName || '');
     byId('receipt-balance').textContent = receiptSummaryText(shipment);
+    const canRecord = Boolean(balance && balance.remainingPaise > 0);
+    byId('receipt-entry-help').textContent = canRecord
+      ? 'Enter a payment received. Only an administrator can undo a test or mistaken receipt.'
+      : 'No positive balance is available to receive. An administrator can still review or undo a recorded receipt below.';
+    Array.from(form.elements).forEach(function (element) {
+      if (element.name) element.disabled = !canRecord;
+    });
+    byId('save-receipt').disabled = !canRecord;
     byId('receipt-dialog-title').textContent = 'Record payment received';
     renderReceiptHistory(shipment.id);
     byId('receipt-dialog').showModal();
+  }
+
+  async function reverseReceipt(receiptId) {
+    const receipt = state.receipts.find(function (item) { return item.id === receiptId; });
+    if (!receipt || receipt.type === 'REVERSAL') {
+      toast('This received payment is no longer available to undo.', 'error');
+      return;
+    }
+    if (!window.confirm('Undo the test/mistaken receipt of ' + displayMoney(receipt.receivedAmount) +
+        ' for LR ' + (receipt.lrNo || '') + '? This adds an audited reversal and restores the pending balance without deleting history.')) return;
+    const shipmentId = receipt.shipmentId;
+    try {
+      const response = await window.BrokerApi.reverseReceipt(receipt.id, newIdempotencyKey());
+      if (!response.receipt) throw new Error('Backend response did not contain the reversal record.');
+      if (!state.receipts.some(function (item) { return item.id === response.receipt.id; })) {
+        state.receipts.push(response.receipt);
+      }
+      render();
+      const shipment = state.records.find(function (item) { return item.id === shipmentId; });
+      if (shipment && byId('shipment-dialog').open && state.editingId === shipmentId) {
+        updateFormCalculations();
+        renderReceiptSummary(shipment);
+      }
+      if (state.receiptShipmentId === shipmentId) {
+        const updatedBalance = shipment ? receiptTotals(shipment) : null;
+        byId('receipt-balance').textContent = updatedBalance
+          ? receiptSummaryText(shipment) : 'Receipt reversed.';
+        const canRecord = Boolean(updatedBalance && updatedBalance.remainingPaise > 0);
+        const form = byId('receipt-form');
+        Array.from(form.elements).forEach(function (element) {
+          if (element.name) element.disabled = !canRecord;
+        });
+        byId('receipt-entry-help').textContent = canRecord
+          ? 'You can now record the correct payment amount if needed.'
+          : 'No positive balance is available to receive.';
+        byId('save-receipt').disabled = !canRecord;
+        renderReceiptHistory(shipmentId);
+      }
+      toast('Receipt reversed. The shipment source data was not changed.' +
+        (response.warning ? ' ' + response.warning : ''), response.warning ? 'error' : 'success');
+      refreshRecords().catch(function (error) {
+        toast('Reversal saved, but refresh failed: ' + error.message, 'error');
+      });
+    } catch (error) {
+      toast(error.message, 'error');
+    }
   }
 
   function closeReceiptDialog() {
@@ -1784,6 +1882,10 @@
       if (event.target === byId('receipt-dialog')) closeReceiptDialog();
     });
     byId('receipt-form').addEventListener('submit', saveReceipt);
+    byId('receipt-history').addEventListener('click', function (event) {
+      const button = event.target.closest('[data-action="reverse-receipt"]');
+      if (button) reverseReceipt(button.dataset.id);
+    });
 
     function bindSectionReset(btnId, resetFn, sectionName) {
       const btn = byId(btnId);
@@ -1911,6 +2013,10 @@
       state.status = event.target.value;
       render();
     }
+    if (event.target.id === 'ledger-receipt-status') {
+      state.receiptStatusFilter = event.target.value;
+      render();
+    }
     if (event.target.id === 'sheet-zoom') {
       const table = document.querySelector('.sheet-table');
       if (table) table.style.zoom = event.target.value;
@@ -1958,14 +2064,17 @@
     if (action === 'clear-filters') {
       state.search = '';
       state.status = 'ALL';
+      state.receiptStatusFilter = 'ALL';
       if (byId('ledger-search')) byId('ledger-search').value = '';
       if (byId('ledger-status')) byId('ledger-status').value = 'ALL';
+      if (byId('ledger-receipt-status')) byId('ledger-receipt-status').value = 'ALL';
       render();
       return;
     }
     if (action === 'view') openShipmentDialog('view', button.dataset.id);
     if (action === 'edit') openShipmentDialog('edit', button.dataset.id);
     if (action === 'receipt') openReceiptDialog(button.dataset.id);
+    if (action === 'reverse-receipt') reverseReceipt(button.dataset.id);
     if (action === 'delete') deleteShipment(button.dataset.id);
     if (action === 'export') exportWorkbook(button);
     if (action === 'fullscreen') {

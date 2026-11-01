@@ -44,4 +44,4 @@ Records have a stable backend-generated `id`, and audit metadata (`createdAt`, `
 
 ## Received payments
 
-The separate `Receipts` tab is append-only and stores actual money received against TOBILLED shipments. The app displays their outstanding balance as formula-derived `Pending Amount` minus the total receipts for that shipment; `Pending Amount: Tobilled` and all shipment source/formula values remain unchanged. Receipts cannot exceed the positive remaining balance. Existing `Recoveries` tabs, if any, are not read, edited, or deleted.
+The separate `Receipts` tab is append-only and stores actual money received against TOBILLED shipments. The app displays their outstanding balance as formula-derived `Pending Amount` minus net receipts for that shipment; `Pending Amount: Tobilled` and all shipment source/formula values remain unchanged. Receipts cannot exceed the positive remaining balance. Admins can append one full reversal per receipt; the original entry remains in the audit history and is excluded from the net received total. Existing `Recoveries` tabs, if any, are not read, edited, or deleted.

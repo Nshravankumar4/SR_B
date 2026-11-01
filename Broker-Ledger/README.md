@@ -100,7 +100,7 @@ The shipment data fields, status contract, and distinction between the two pendi
 With Node.js 18 or later:
 
 ```powershell
-node --test tests\calculations.test.js tests\validation.test.js tests\summaries.test.js tests\receipts.test.js
+node --test tests\calculations.test.js tests\validation.test.js tests\summaries.test.js tests\receipts.test.js tests\backend-receipts.test.js
 ```
 
 Run the command from `D:\Repo\SR_B\Broker-Ledger`. The same calculation and validation checks can be run in a browser by serving `D:\Repo\SR_B` and opening `/Broker-Ledger/tests/browser-runner.html`. Test coverage and end-to-end checks are listed in [docs/TESTING.md](docs/TESTING.md).

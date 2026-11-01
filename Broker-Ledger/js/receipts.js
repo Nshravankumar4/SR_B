@@ -4,9 +4,17 @@
   function calculateBalance(originalPending, receipts, shipmentId) {
     const original = root.BrokerCalculations.parseMoney(originalPending);
     if (!original.ok) throw new Error('Shipment pending amount is invalid.');
+    const entries = (receipts || []).filter(function (receipt) {
+      return receipt && receipt.shipmentId === shipmentId;
+    });
+    const reversedIds = new Set(entries.filter(function (receipt) {
+      return receipt.type === 'REVERSAL';
+    }).map(function (receipt) {
+      return receipt.reversalOf;
+    }));
     let receivedPaise = 0;
-    (receipts || []).forEach(function (receipt) {
-      if (!receipt || receipt.shipmentId !== shipmentId) return;
+    entries.forEach(function (receipt) {
+      if (receipt.type === 'REVERSAL' || reversedIds.has(receipt.id)) return;
       const amount = root.BrokerCalculations.parseMoney(receipt.receivedAmount);
       if (!amount.ok || amount.paise <= 0) throw new Error('Receipt contains an invalid received amount.');
       receivedPaise += amount.paise;

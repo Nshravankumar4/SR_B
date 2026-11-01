@@ -32,6 +32,19 @@ test('receipts do not reduce A/TO-PAY or F/TO-PAY balances', function () {
   ]).pendingAmountPaise, 25000);
 });
 
+test('an audited reversal restores the original receipt amount without deleting history', function () {
+  const balance = receipts.calculateBalance(10000, [
+    { id: 'receipt-1', shipmentId: 'shipment-1', receivedAmount: 10000 },
+    {
+      id: 'reversal-1', type: 'REVERSAL', reversalOf: 'receipt-1',
+      shipmentId: 'shipment-1', receivedAmount: 10000
+    }
+  ], 'shipment-1');
+  assert.equal(balance.originalPaise, 1000000);
+  assert.equal(balance.receivedPaise, 0);
+  assert.equal(balance.remainingPaise, 1000000);
+});
+
 test('receipt balance preserves zero and negative calculated outcomes', function () {
   assert.equal(receipts.calculateBalance(0, [], 'shipment-1').remainingPaise, 0);
   assert.equal(receipts.calculateBalance(100, [

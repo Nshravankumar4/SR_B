@@ -64,6 +64,9 @@
     remove: function (id) { return request('deleteShipment', { id: id }); },
     importMany: function (records) { return request('importShipments', { records: records }); },
     createReceipt: function (receipt) { return request('createReceipt', { receipt: receipt }); },
+    reverseReceipt: function (receiptId, idempotencyKey) {
+      return request('reverseReceipt', { receiptId: receiptId, idempotencyKey: idempotencyKey });
+    },
     backup: function () { return request('createBackup'); }
   });
 })(window);

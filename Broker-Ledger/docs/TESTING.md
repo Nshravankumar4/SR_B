@@ -5,7 +5,7 @@
 The Node.js calculation and validation suites run with:
 
 ```powershell
-node --test .\Broker-Ledger\tests\calculations.test.js .\Broker-Ledger\tests\summaries.test.js .\Broker-Ledger\tests\validation.test.js .\Broker-Ledger\tests\receipts.test.js
+node --test .\Broker-Ledger\tests\calculations.test.js .\Broker-Ledger\tests\summaries.test.js .\Broker-Ledger\tests\validation.test.js .\Broker-Ledger\tests\receipts.test.js .\Broker-Ledger\tests\backend-receipts.test.js
 ```
 
 Run the existing PowerShell suites separately:
@@ -53,6 +53,7 @@ After deploying a separate Apps Script project and configuring `Broker-Ledger/js
 2. Add, edit, status change, and reload; IDs remain stable and records are not duplicated.
 3. Employee delete/backup requests are rejected by the server; Admin delete/backup succeeds.
 4. Search and all three exact status filters.
+   - Verify the separate received-payment filter (none, partial, fully received), the four action columns, and Admin-only receipt reversal.
 5. Excel import preview, duplicate rejection, text placeholder preservation, and export/re-import consistency.
 6. Dashboard, filtered ledger, sheet view, and export calculations agree.
 7. Sync across two authorized browser sessions and visible offline behavior.
