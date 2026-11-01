@@ -10,6 +10,7 @@
 - Improved the Bank/POD and received-payment summary layouts.
 - Added dashboard Done/Pending counts with click-through filters; pending dashboard rows open the exact shipment in the Live Excel Sheet.
 - Added received total, latest receipt date/mode, and payment status columns to the ledger and Live Excel Sheet.
+- Added the same receipt-summary columns to styled Excel downloads, including payment-status colors.
 - Enabled receipt management from both View and Edit forms; hides receipt-entry fields when no balance is available and shows the payment history instead.
 
 ## 1.0.0

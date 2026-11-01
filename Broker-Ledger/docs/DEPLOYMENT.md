@@ -4,6 +4,16 @@
 
 Run Python's static server from the repository root (`D:\Repo\SR_B`) and open `http://127.0.0.1:8123/?preview=1`. The root `index.html` loads this folder's app assets. This is a read-only, empty preview, not a local database, login, or production mode.
 
+## Current production deployment
+
+The configured frontend points to the following Apps Script Web App deployment (updated November 1, 2026):
+
+| Version | Deployment ID | Web App URL |
+|---|---|---|
+| 5 | `AKfycbzAA-E7XNuQiVeUWAENpUfyWphI5zOiTQsaYzbBO7kgu-xivQdr-jxDHnq12snYkHdG0w` | [Apps Script Web App](https://script.google.com/macros/s/AKfycbzAA-E7XNuQiVeUWAENpUfyWphI5zOiTQsaYzbBO7kgu-xivQdr-jxDHnq12snYkHdG0w/exec) |
+
+This deployment ID is configuration, not a credential. Do not publish user passwords or Script Properties.
+
 ## Create an independent Apps Script backend
 
 1. Sign in to the Google account that should own the new database and create a new standalone Apps Script project. Do not copy the SR_T project or its Script Properties.

@@ -37,6 +37,8 @@
     'pM', 'pendingAmount', 'podAmountStatus', 'remarks', 'toPayStatus'
   ];
   const DISPLAY_FIELDS = FIELD_ORDER.filter(function (field) { return field !== 'podAmountStatus'; });
+  const RECEIPT_EXPORT_FIELDS = ['receivedAmount', 'latestReceivedDate', 'paymentMode', 'paymentStatus'];
+  const EXPORT_FIELDS = DISPLAY_FIELDS.concat(RECEIPT_EXPORT_FIELDS);
   const LABELS = {
     slNo: 'SL NO', transportName: 'TRSP NAME', date: 'DATE', lrNo: 'LR NO', truckNo: 'TRUCK NO',
     from: 'FROM', to: 'TO', accountNo: 'ACCOUNT NO', ifscCode: 'IFSC CODE', bank: 'PAYMENT MADE',
@@ -46,7 +48,9 @@
     codToPay: 'Cash on Delivery (COD) :A/Topay&Ftopay',
     pendingTobilled: 'Pending Amount: Tobilled', extraAmount: 'Extra Amount',
     pmPaDate: 'PM/PA Date', pM: 'P/M', pendingAmount: 'Pending Amount',
-    podAmountStatus: 'POD Amount Status', remarks: 'REMARKS / NOTE', toPayStatus: 'ToPayStatus'
+    podAmountStatus: 'POD Amount Status', remarks: 'REMARKS / NOTE', toPayStatus: 'ToPayStatus',
+    receivedAmount: 'Received Amount', latestReceivedDate: 'Latest Received Date',
+    paymentMode: 'Payment Mode', paymentStatus: 'Payment Status'
   };
   const MONEY_FIELDS = new Set([
     'freight', 'tM', 'advance', 'advance2', 'advance3',
@@ -1499,11 +1503,6 @@
     const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     return iso ? iso[3] + '-' + iso[2] + '-' + iso[1] : text;
   }
-  function numericExportValue(value) {
-    if (value === null || value === undefined || value === '') return '';
-    const parsed = CALC.parseMoney(value);
-    return parsed.ok ? CALC.fromPaise(parsed.paise) : String(value);
-  }
   async function exportWorkbook(btn) {
     const originalText = btn ? btn.textContent : '';
     if (btn) {
@@ -1515,8 +1514,10 @@
       const summary = numericTotals(data);
       const filename = 'Broker_Ledger_' + new Date().toISOString().slice(0, 10) + '.xlsx';
 
-      if (window.ExcelJS) {
-      try {
+      if (!window.ExcelJS) {
+        throw new Error('The styled Excel library did not load. Reload the page and try again.');
+      }
+
         const workbook = new window.ExcelJS.Workbook();
         workbook.creator = "SR Brokerage Ledger";
         workbook.created = new Date();
@@ -1525,15 +1526,16 @@
           views: [{ state: 'frozen', ySplit: 1, showGridLines: true }]
         });
 
-        ws.columns = DISPLAY_FIELDS.map(function (field) {
+        ws.columns = EXPORT_FIELDS.map(function (field) {
           const label = LABELS[field] || field;
           let width = Math.max(12, Math.min(32, label.length + 4));
           if (field === 'slNo') width = 8;
           else if (field === 'transportName') width = 24;
           else if (field === 'truckNo') width = 16;
           else if (field === 'remarks') width = 30;
-          else if (MONEY_FIELDS.has(field) || field === 'codToPay') width = 16;
-          else if (DATE_FIELDS.has(field)) width = 14;
+          else if (MONEY_FIELDS.has(field) || field === 'codToPay' || field === 'receivedAmount') width = 16;
+          else if (DATE_FIELDS.has(field) || field === 'latestReceivedDate') width = 14;
+          else if (field === 'paymentStatus' || field === 'paymentMode') width = 18;
           return { header: label, key: field, width: width };
         });
 
@@ -1552,19 +1554,25 @@
         const headerRow = ws.getRow(1);
         headerRow.height = 28;
         headerRow.eachCell(function (cell, colNumber) {
-          const field = DISPLAY_FIELDS[colNumber - 1];
+          const field = EXPORT_FIELDS[colNumber - 1];
           cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
           cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
           cell.border = thinBorder;
 
-          if (field === 'toPayStatus') cell.fill = statusHeaderFill;
+          if (field === 'toPayStatus' || field === 'paymentStatus') cell.fill = statusHeaderFill;
           else if (field === 'pendingTobilled' || field === 'pendingAmount') cell.fill = calcHeaderFill;
           else if (field === 'codToPay' || field === 'podReceivedDate') cell.fill = codHeaderFill;
           else cell.fill = navyHeaderFill;
         });
 
         data.forEach(function (record, rowIndex) {
-          const rowData = {};
+          const receiptDetails = receiptDisplayDetails(record);
+          const rowData = {
+            receivedAmount: receiptDetails.receivedPaise ? CALC.fromPaise(receiptDetails.receivedPaise) : '',
+            latestReceivedDate: receiptDetails.receivedDate,
+            paymentMode: receiptDetails.paymentMode,
+            paymentStatus: receiptDetails.paymentStatus
+          };
           DISPLAY_FIELDS.forEach(function (field) {
             if (DATE_FIELDS.has(field)) {
               rowData[field] = dateForExport(record[field]);
@@ -1588,7 +1596,7 @@
           const isEven = rowIndex % 2 === 1;
 
           row.eachCell({ includeEmpty: true }, function (cell, colNumber) {
-            const field = DISPLAY_FIELDS[colNumber - 1];
+            const field = EXPORT_FIELDS[colNumber - 1];
             cell.border = thinBorder;
             cell.font = { name: 'Calibri', size: 10, color: { argb: 'FF111827' } };
             cell.alignment = { vertical: 'middle' };
@@ -1597,9 +1605,9 @@
               cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
             }
 
-            if (field === 'slNo' || DATE_FIELDS.has(field) || field === 'lrNo' || field === 'truckNo' || field === 'podAmountStatus') {
+            if (field === 'slNo' || DATE_FIELDS.has(field) || field === 'latestReceivedDate' || field === 'lrNo' || field === 'truckNo') {
               cell.alignment = { horizontal: 'center', vertical: 'middle' };
-            } else if (MONEY_FIELDS.has(field) || (field === 'codToPay' && typeof cell.value === 'number')) {
+            } else if (MONEY_FIELDS.has(field) || field === 'receivedAmount' || (field === 'codToPay' && typeof cell.value === 'number')) {
               cell.alignment = { horizontal: 'right', vertical: 'middle' };
               cell.numFmt = '#,##0.00';
             }
@@ -1609,7 +1617,19 @@
               cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF065F46' } };
             }
 
-            if (field === 'toPayStatus' && cell.value) {
+            if (field === 'paymentStatus' && cell.value) {
+              cell.alignment = { horizontal: 'center', vertical: 'middle' };
+              if (cell.value === 'Done') {
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDCFCE7' } };
+                cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF166534' } };
+              } else if (cell.value === 'Pending') {
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEDD5' } };
+                cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF9A3412' } };
+              } else {
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3E8FF' } };
+                cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF6B21A8' } };
+              }
+            } else if (field === 'toPayStatus' && cell.value) {
               const st = String(cell.value).toUpperCase();
               cell.alignment = { horizontal: 'center', vertical: 'middle' };
               if (st.includes('A/TO-PAY')) {
@@ -1627,7 +1647,7 @@
         });
 
         const totalsData = {};
-        DISPLAY_FIELDS.forEach(function (f) { totalsData[f] = ''; });
+        EXPORT_FIELDS.forEach(function (f) { totalsData[f] = ''; });
         totalsData.slNo = 'TOTAL (' + data.length + ' shipments)';
         totalsData.freight = CALC.fromPaise(summary.freightPaise);
         totalsData.tM = CALC.fromPaise(summary.tMPaise);
@@ -1651,7 +1671,7 @@
         };
 
         totRow.eachCell({ includeEmpty: true }, function (cell, colNumber) {
-          const field = DISPLAY_FIELDS[colNumber - 1];
+          const field = EXPORT_FIELDS[colNumber - 1];
           cell.fill = totalYellowFill;
           cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF000000' } };
           cell.border = totalBorder;
@@ -1680,50 +1700,9 @@
           }, 200);
         }
         toast('Excel workbook downloaded with application styles.', 'success');
-        return;
-      } catch (excelErr) {
-        console.warn('ExcelJS styled export error, falling back to SheetJS:', excelErr);
-      }
-    }
-
-    if (!window.XLSX) {
-      toast('The local Excel library did not load. Reload the page and try again.', 'error');
-      return;
-    }
-    const rows = data.map(function (record) {
-      return DISPLAY_FIELDS.map(function (field) {
-        if (DATE_FIELDS.has(field)) return dateForExport(record[field]);
-        if (field === 'codToPay') {
-          const parsed = CALC.parseMoney(record[field], { allowEmpty: true });
-          return parsed.ok && !parsed.empty ? CALC.fromPaise(parsed.paise) : (record[field] || '');
-        }
-        if (field === 'pendingTobilled' || field === 'pendingAmount') {
-          const parsed = CALC.parseMoney(record[field], { allowEmpty: true });
-          return parsed.ok && !parsed.empty ? CALC.fromPaise(parsed.paise) : '';
-        }
-        if (MONEY_FIELDS.has(field)) return numericExportValue(record[field]);
-        return record[field] === null || record[field] === undefined ? '' : record[field];
-      });
-    });
-    const totals = DISPLAY_FIELDS.map(function (field, idx) {
-      if (idx === 0) return 'TOTAL (' + data.length + ' shipments)';
-      if (field === 'freight') return CALC.fromPaise(summary.freightPaise);
-      if (field === 'tM') return CALC.fromPaise(summary.tMPaise);
-      if (field === 'advance') return CALC.fromPaise(summary.advancePaise - summary.advance2Paise - summary.advance3Paise);
-      if (field === 'advance2') return CALC.fromPaise(summary.advance2Paise);
-      if (field === 'advance3') return CALC.fromPaise(summary.advance3Paise);
-      if (field === 'codToPay') return CALC.fromPaise(summary.codToPayPaise);
-      if (field === 'pendingTobilled') return CALC.fromPaise(summary.pendingTobilledPaise);
-      if (field === 'extraAmount') return CALC.fromPaise(summary.extraAmountPaise);
-      if (field === 'pM') return CALC.fromPaise(summary.pMPaise);
-      if (field === 'pendingAmount') return CALC.fromPaise(summary.pendingAmountPaise);
-      return '';
-    });
-    const worksheet = window.XLSX.utils.aoa_to_sheet([DISPLAY_FIELDS.map(function (field) { return LABELS[field]; })].concat(rows, [totals]));
-    worksheet['!cols'] = DISPLAY_FIELDS.map(function (field) { return { wch: Math.max(12, Math.min(30, LABELS[field].length + 3)) }; });
-    const workbook = window.XLSX.utils.book_new();
-    window.XLSX.utils.book_append_sheet(workbook, worksheet, 'Broker Ledger');
-    window.XLSX.writeFile(workbook, filename);
+    } catch (error) {
+      console.error('Excel workbook export failed:', error);
+      toast('Excel workbook could not be created: ' + error.message, 'error');
     } finally {
       if (btn) {
         btn.textContent = originalText;

@@ -25,6 +25,7 @@ powershell -ExecutionPolicy Bypass -Command "& '.\verify_broker_ledger.ps1'; & '
    - POD Amount Status is omitted from the ledger, Live Excel Sheet, and exported workbook while existing stored values remain available to imports and edits.
    - In the shipment form, the receipt summary avoids repeating Remaining because the final Pending Amount field already shows that value; the management dialog shows Received, Remaining, and Status together.
    - Receipt entry recalculates the preview as the amount changes, rejects invalid/over-balance values, and does not persist the preview until Add Payment is selected.
+   - Excel export uses the styled ExcelJS workbook and includes the Live Excel Sheet receipt summary columns; if styling/export fails, the user sees an error instead of receiving an unstyled fallback.
    - Dashboard Done/Pending cards, exact-shipment sheet navigation, received total/latest date/payment mode columns, and payment entry visibility when a balance is zero.
    - Decimal paise precision and negative balance preservation.
 

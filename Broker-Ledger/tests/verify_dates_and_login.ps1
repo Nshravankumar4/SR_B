@@ -50,7 +50,9 @@ $t22 = $appJs.Contains("const isAdmin = Boolean(state.user && state.user.role ==
        $appJs.Contains("!wasReversed && state.user")
 $t23 = $appJs.Contains("const DISPLAY_FIELDS = FIELD_ORDER.filter(function (field) { return field !== 'podAmountStatus'; });") -and `
        $appJs.Contains("DISPLAY_FIELDS.map(function (field) { return headerCell(field, true); })") -and `
-       $appJs.Contains("ws.columns = DISPLAY_FIELDS.map(function (field)") -and `
+       $appJs.Contains("ws.columns = EXPORT_FIELDS.map(function (field)") -and `
+       $appJs.Contains("const EXPORT_FIELDS = DISPLAY_FIELDS.concat(RECEIPT_EXPORT_FIELDS);") -and `
+       !$appJs.Contains("ws.columns = DISPLAY_FIELDS.map(function (field)") -and `
        $appJs.Contains("FIELD_ORDER.forEach(function (field)")
 $t24 = $appJs.Contains("toast('Shipment was not saved. ' + error.message, 'error');") -and `
        $appJs.Contains("closeShipmentDialog();") -and `
@@ -62,6 +64,15 @@ $t25 = $receiptsJs.Contains("function previewBalance(balance, amountPaise)") -an
        $appJs.Contains("RECEIPTS.previewBalance(balance, amount.paise)") -and `
        $appJs.Contains("It is recorded only after you select Add Payment.") -and `
        $indexHtml.Contains("receipts.js?v=20261101-6")
+$t26 = $appJs.Contains("ExcelJS styled export error") -eq $false -and `
+       $appJs.Contains("Excel workbook downloaded with application styles.") -and `
+       $appJs.Contains("Excel workbook could not be created: ' + error.message") -and `
+       !$appJs.Contains("window.XLSX.writeFile") -and `
+       $appJs.Contains("const EXPORT_FIELDS = DISPLAY_FIELDS.concat(RECEIPT_EXPORT_FIELDS);") -and `
+       $appJs.Contains("receivedAmount: receiptDetails.receivedPaise") -and `
+       $appJs.Contains("paymentStatus: receiptDetails.paymentStatus") -and `
+       $appJs.Contains("field === 'paymentStatus' && cell.value") -and `
+       $appJs.Contains("receivedAmount: 'Received Amount'")
 
 $results = @(
   @{ Name = "1. Form: 1st Advance Given Date separate input"; Ok = $t1 },
@@ -88,7 +99,8 @@ $results = @(
   @{ Name = "22. Permissions: Rudra has other actions but not the shipment Delete column"; Ok = $t22 },
   @{ Name = "23. UI/export: POD Amount Status column hidden while underlying data is retained"; Ok = $t23 },
   @{ Name = "24. UI: Successful shipment saves close the dialog and failures show an error"; Ok = $t24 },
-  @{ Name = "25. Payments: Received amount previews live and applies only after confirmation"; Ok = $t25 }
+  @{ Name = "25. Payments: Received amount previews live and applies only after confirmation"; Ok = $t25 },
+  @{ Name = "26. Export: Styled downloads include Live Excel Sheet receipt summary columns"; Ok = $t26 }
 )
 
 $passed = 0

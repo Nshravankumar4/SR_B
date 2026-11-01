@@ -21,6 +21,6 @@
 4. Browser views, the dashboard, live spreadsheet view, and ExcelJS exports calculate derived values through the same shared rules from source fields; only TOBILLED final pending balances are reduced by receipts from the separate ledger.
 5. On a visible signed-in page, an 8-second poll checks the lightweight backend data version without taking the spreadsheet lock. The browser reloads the full authoritative dataset only after the version changes; returning to the tab and manual refresh also check for updates. A failed check is shown as offline/stale rather than a confirmed current sync.
 6. Updates include the record's `updatedAt` value captured when editing began. The backend rejects an update if another user saved a newer version, so stale forms cannot silently overwrite it.
-7. Excel downloads use ExcelJS to format the spreadsheet with exact application styling: colored status and calculation header blocks, thin slate borders, alternating row fills, custom number formats, frozen header panes, and double-underlined summary totals.
+7. Excel downloads use ExcelJS to match the Live Excel Sheet columns, including received amount, latest receipt date, payment mode, and payment status. The workbook uses application styling: colored status and calculation header blocks, thin slate borders, alternating row fills, custom number formats, frozen header panes, and double-underlined summary totals.
 
 The application is not connected to the reference project's backend or spreadsheet. No sample shipment data is seeded at setup.
