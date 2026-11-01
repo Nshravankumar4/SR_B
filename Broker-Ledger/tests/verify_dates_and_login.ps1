@@ -26,9 +26,61 @@ $t15 = $html.Contains("clear-payment-details") -and `
        $appJs.Contains("clearAdvancePayments") -and `
        $appJs.Contains("clearBankPodDetails") -and `
        !($html.Contains("field-clear-btn"))
-$t16 = $html.Contains("btn-fill-pending") -and $appJs.Contains("btn-fill-pending")
+$t16 = $html.Contains('<input type="hidden" name="podAmountStatus">') -and `
+       !$html.Contains('id="btn-fill-pending"') -and `
+       !$html.Contains("POD Balance Amount / Status")
 $t17 = $html.Contains("clear-all-dialog") -and $appJs.Contains("clear-all-dialog")
 $t18 = $appJs.Contains("Add & Submit Shipment") -and $appJs.Contains("Update Shipment")
+$t19 = $html.Contains('id="pod-payment-status"') -and `
+       $html.Contains("Calculated payment status") -and `
+       $appJs.Contains("function paymentStatusText") -and `
+       $appJs.Contains("summary.innerHTML = receiptBalanceMarkup(totals, false)")
+$t20 = $html.Contains("Record / Manage Payments") -and `
+       $appJs.Contains("button.disabled = state.preview") -and `
+       $appJs.Contains("No positive balance is available to receive") -and `
+       $appJs.Contains("receipt-entry-section').hidden = !canRecord")
+$t21 = $appJs.Contains("Latest Received Date") -and `
+       $appJs.Contains("Payment Mode</th>") -and `
+       $appJs.Contains("function receiptTableCells") -and `
+       $appJs.Contains("category: 'payment_done'") -and `
+       $appJs.Contains("RECEIPTS.paymentStatus(balance.remainingPaise)")
+$t22 = $appJs.Contains("const isAdmin = Boolean(state.user && state.user.role === 'Admin');") -and `
+       $appJs.Contains("(isAdmin ? '<th>Delete</th>' : '')") -and `
+       $appJs.Contains("const adminTools = state.user ?") -and `
+       $appJs.Contains("!wasReversed && state.user")
+$t23 = $appJs.Contains("const DISPLAY_FIELDS = FIELD_ORDER.filter(function (field) { return field !== 'podAmountStatus'; });") -and `
+       $appJs.Contains("DISPLAY_FIELDS.map(function (field) { return headerCell(field, true); })") -and `
+       $appJs.Contains("ws.columns = EXPORT_FIELDS.map(function (field)") -and `
+       $appJs.Contains("const EXPORT_FIELDS = DISPLAY_FIELDS.concat(RECEIPT_EXPORT_FIELDS);") -and `
+       !$appJs.Contains("ws.columns = DISPLAY_FIELDS.map(function (field)") -and `
+       $appJs.Contains("FIELD_ORDER.forEach(function (field)")
+$t24 = $appJs.Contains("toast('Shipment was not saved. ' + error.message, 'error');") -and `
+       $appJs.Contains("closeShipmentDialog();") -and `
+       $appJs.Contains("toast((isEditing ? 'Shipment updated.' : 'Shipment saved.')")
+$receiptsJs = Get-Content -Raw "Broker-Ledger/js/receipts.js"
+$indexHtml = Get-Content -Raw "index.html"
+$t25 = $receiptsJs.Contains("function previewBalance(balance, amountPaise)") -and `
+       $appJs.Contains("elements.receivedAmount.addEventListener('input', renderReceiptEntryPreview)") -and `
+       $appJs.Contains("RECEIPTS.previewBalance(balance, amount.paise)") -and `
+       $appJs.Contains("It is recorded only after you select Add Payment.") -and `
+       $indexHtml.Contains("receipts.js?v=20261101-6")
+$t26 = $appJs.Contains("ExcelJS styled export error") -eq $false -and `
+       $appJs.Contains("Excel workbook downloaded with application styles.") -and `
+       $appJs.Contains("Excel workbook could not be created: ' + error.message") -and `
+       !$appJs.Contains("window.XLSX.writeFile") -and `
+       $appJs.Contains("const EXPORT_FIELDS = DISPLAY_FIELDS.concat(RECEIPT_EXPORT_FIELDS);") -and `
+       $appJs.Contains("receivedAmount: receiptDetails.receivedPaise") -and `
+       $appJs.Contains("paymentStatus: receiptDetails.paymentStatus") -and `
+       $appJs.Contains("field === 'paymentStatus' && cell.value") -and `
+       $appJs.Contains("receivedAmount: 'Received Amount'")
+$t27 = $appJs.Contains("function duplicateLrRecord(record)") -and `
+       $appJs.Contains("updateLrDuplicateWarning();") -and `
+       $appJs.Contains("Enter a unique LR No.") -and `
+       $appJs.Contains("const lrNo = String(record && record.lrNo || '').trim().toLowerCase();") -and `
+       $codeGs.Contains("return String(record && record.lrNo || '').trim().toLowerCase();") -and `
+       $codeGs.Contains("Every shipment must have a unique LR No.") -and `
+       $html.Contains('id="lr-duplicate-warning"') -and `
+       $css.Contains(".lr-duplicate-warning:not([hidden])")
 
 $results = @(
   @{ Name = "1. Form: 1st Advance Given Date separate input"; Ok = $t1 },
@@ -46,9 +98,18 @@ $results = @(
   @{ Name = "13. CSS: user-switch-card active has distinct border and background"; Ok = $t13 },
   @{ Name = "14. UI: Advance payments grouped into compact consistent rows"; Ok = $t14 },
   @{ Name = "15. UI: All 4 section clear buttons present and individual clear buttons removed"; Ok = $t15 },
-  @{ Name = "16. UI: Fill Pending Amount button in live calculation summary"; Ok = $t16 },
+  @{ Name = "16. UI: POD Amount Status input removed while existing data remains preserved"; Ok = $t16 },
   @{ Name = "17. UI: Clear All button with confirmation"; Ok = $t17 },
-  @{ Name = "18. UI: Dynamic Add & Submit / Update Shipment button labels"; Ok = $t18 }
+  @{ Name = "18. UI: Dynamic Add & Submit / Update Shipment button labels"; Ok = $t18 },
+  @{ Name = "19. UI: Separate derived payment status and non-duplicated receipt summary"; Ok = $t19 },
+  @{ Name = "20. UI: Received-payment management works in View/Edit and hides unavailable entry inputs"; Ok = $t20 },
+  @{ Name = "21. UI: Dashboard Done filter and sheet payment mode/date/amount/status columns"; Ok = $t21 },
+  @{ Name = "22. Permissions: Rudra has other actions but not the shipment Delete column"; Ok = $t22 },
+  @{ Name = "23. UI/export: POD Amount Status column hidden while underlying data is retained"; Ok = $t23 },
+  @{ Name = "24. UI: Successful shipment saves close the dialog and failures show an error"; Ok = $t24 },
+  @{ Name = "25. Payments: Received amount previews live and applies only after confirmation"; Ok = $t25 },
+  @{ Name = "26. Export: Styled downloads include Live Excel Sheet receipt summary columns"; Ok = $t26 },
+  @{ Name = "27. Shipment form and backend reject duplicate LR Nos"; Ok = $t27 }
 )
 
 $passed = 0
@@ -64,4 +125,3 @@ foreach ($r in $results) {
 }
 Write-Host "`nTargeted Suite: $passed Passed, $failed Failed"
 if ($failed -gt 0) { exit 1 }
-

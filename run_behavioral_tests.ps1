@@ -361,9 +361,6 @@ class LedgerAppSimulator {
         $this.form.SetValue("pendingTobilled", $ptStr)
         $paStr = $(if ($calc.pendingAmount -ne $null) { $calc.pendingAmount.ToString() } else { "" })
         $this.form.SetValue("pendingAmount", $paStr)
-        if ($calc.podAmountStatus -ne $null) {
-            $this.form.SetValue("podAmountStatus", $calc.podAmountStatus.ToString())
-        }
     }
 
     [void]OpenShipmentDialog([string]$mode) {
@@ -389,7 +386,6 @@ class LedgerAppSimulator {
         } else {
             $this.form.SetValue("date", "2026-10-28")
             $this.form.SetValue("toPayStatus", "TOBILLED")
-            $this.form.SetValue("podAmountStatus", "0")
             $this.codToPayNote = "if Tobilled NA"
         }
         $this.UpdateFormCalculations()
@@ -438,7 +434,6 @@ class LedgerAppSimulator {
         $rec.codToPay = $calc.codToPay
         $rec.pendingTobilled = $calc.pendingTobilled
         $rec.pendingAmount = $calc.pendingAmount
-        $rec.podAmountStatus = $calc.podAmountStatus
 
         if ($this.editingId) {
             # Update existing
@@ -493,10 +488,10 @@ Assert-Step "Scenario 1.3: Autocomplete includes regional logistics hubs for rou
 
 # Test Scenario 2: Add Shipment Dialog Initialization & Autocomplete Autofill
 $app.OpenShipmentDialog("add")
-Assert-Step "Scenario 2.1: Add dialog initializes with date, TOBILLED status, and numeric 0 podAmountStatus" `
+Assert-Step "Scenario 2.1: Add dialog initializes with date and TOBILLED status, leaving POD Amount / Status blank" `
     ($app.form.GetValue("date") -eq "2026-10-28" -and `
      $app.form.GetValue("toPayStatus") -eq "TOBILLED" -and `
-     $app.form.GetValue("podAmountStatus") -eq "0" -and `
+     $app.form.GetValue("podAmountStatus") -eq "" -and `
      $app.formMode -eq "add" -and `
      $app.saveBtnHidden -eq $false)
 
@@ -535,7 +530,7 @@ Assert-Step "Scenario 3.1: TOBILLED live calculation: Pending: Tobilled 29,500, 
     ($app.form.GetValue("pendingTobilled") -eq "29500" -and `
      $app.form.GetValue("pendingAmount") -eq "31600" -and `
      $app.form.GetValue("codToPay") -eq "if Tobilled NA" -and `
-     $app.form.GetValue("podAmountStatus") -eq "0")
+    $app.form.GetValue("podAmountStatus") -eq "")
 
 # Mode 2: Switch to A/TO-PAY (Preserving all fields!)
 $app.form.SetValue("toPayStatus", "A/TO-PAY")
@@ -551,7 +546,7 @@ Assert-Step "Scenario 3.2: A/TO-PAY preserves all inputs: COD 29,500, Final Pend
      $app.form.GetValue("codToPay") -eq "29500" -and `
      $app.form.GetValue("pendingAmount") -eq "15000" -and `
      $app.form.GetValue("pendingTobilled") -eq "" -and `
-     $app.form.GetValue("podAmountStatus") -eq "0")
+     $app.form.GetValue("podAmountStatus") -eq "")
 
 # Mode 3: Switch to F/TO-PAY (Preserving all fields!)
 $app.form.SetValue("toPayStatus", "F/TO-PAY")
@@ -561,7 +556,7 @@ Assert-Step "Scenario 3.3: F/TO-PAY preserves inputs without destructive wiping"
      $app.form.GetValue("extraAmount") -eq "2,500" -and `
      $app.form.GetValue("codToPay") -eq "29500" -and `
      $app.form.GetValue("pendingAmount") -eq "15000" -and `
-     $app.form.GetValue("podAmountStatus") -eq "0")
+    $app.form.GetValue("podAmountStatus") -eq "")
 
 # Switch back to TOBILLED
 $app.form.SetValue("toPayStatus", "TOBILLED")
@@ -569,7 +564,10 @@ $app.UpdateFormCalculations()
 Assert-Step "Scenario 3.4: Reverting to TOBILLED restores exact initial calculations without data loss" `
     ($app.form.GetValue("pendingTobilled") -eq "29500" -and `
      $app.form.GetValue("pendingAmount") -eq "31600" -and `
-     $app.form.GetValue("podAmountStatus") -eq "0")
+     $app.form.GetValue("podAmountStatus") -eq "")
+
+# POD notes remain user-owned and are not overwritten by calculation results.
+$app.form.SetValue("podAmountStatus", "POD received")
 
 # Test Scenario 4: Duplicate Detection Enforcement & Collision Blocking
 # Try to submit identical duplicate of Trip #1 (LR 207, Date 2026-08-20, Truck AP39UD3564)
@@ -587,7 +585,8 @@ Assert-Step "Scenario 4.1: Submitting identical (LR No + Date + Truck No) is str
 $app.form.SetValue("date", "2026-10-28")
 $validResDate = $app.SaveShipment()
 Assert-Step "Scenario 4.2: Legitimate shipment with same LR No on a different date is saved successfully" `
-    ($validResDate.ok -eq $true -and $app.records.Count -eq 5)
+    ($validResDate.ok -eq $true -and $app.records.Count -eq 5 -and `
+     $validResDate.record.podAmountStatus -eq "POD received")
 
 # Verify autocomplete automatically refreshed after save
 Assert-Step "Scenario 4.3: Autocomplete refreshed immediately with newly saved shipment data" `
@@ -623,7 +622,7 @@ $app.OpenShipmentDialog("view", $newId)
 Assert-Step "Scenario 5.4: Reopened record confirms 100% mathematical consistency with authoritative rules" `
     ($app.form.GetValue("pendingTobilled") -eq "29500" -and `
      $app.form.GetValue("pendingAmount") -eq "31600" -and `
-     $app.form.GetValue("podAmountStatus") -eq "0")
+     $app.form.GetValue("podAmountStatus") -eq "POD received")
 
 Write-Host "`n========================================================" -ForegroundColor Cyan
 Write-Host "  BEHAVIORAL E2E TEST RESULTS SUMMARY" -ForegroundColor Cyan

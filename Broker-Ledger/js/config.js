@@ -1,4 +1,4 @@
 window.BROKER_CONFIG = Object.freeze({
   appName: 'SR Brokerage Ledger',
-  apiUrl: 'https://script.google.com/macros/s/AKfycbzOjgeHVm8VRyx_LsAEAy6yk6OVTuHs3DNJcRWlQpximwe5qGLJkMjm8p_fTIk5BQeo/exec'
+  apiUrl: 'https://script.google.com/macros/s/AKfycby1IyooUMB67tj9eLtgQSP1QtMKVUZ7FcNMcBLrAgKAl6LefwLDt6Wm5mdPxM9SPLwuMQ/exec'
 });

@@ -6,15 +6,16 @@
   <meta name="theme-color" content="#0f172a">
   <meta name="description" content="SR Brokerage Ledger shipment and financial tracking application">
   <title>SR Brokerage Ledger</title>
-  <link rel="stylesheet" href="Broker-Ledger/css/styles.css">
+  <link rel="stylesheet" href="Broker-Ledger/css/styles.css?v=20261101-6">
   <script src="Broker-Ledger/libs/exceljs.min.js"></script>
   <script src="Broker-Ledger/libs/FileSaver.min.js"></script>
   <script src="Broker-Ledger/libs/xlsx.full.min.js"></script>
   <script defer src="Broker-Ledger/js/config.js"></script>
   <script defer src="Broker-Ledger/js/calculations.js"></script>
+  <script defer src="Broker-Ledger/js/receipts.js?v=20261101-6"></script>
   <script defer src="Broker-Ledger/js/validation.js"></script>
   <script defer src="Broker-Ledger/js/api.js"></script>
-  <script defer src="Broker-Ledger/js/app.js"></script>
+  <script defer src="Broker-Ledger/js/app.js?v=20261101-12"></script>
 </head>
 <body>
   <noscript><p class="noscript">Broker Ledger requires JavaScript to run.</p></noscript>
@@ -149,6 +150,7 @@
           <label class="form-field">
             <span class="field-label">LR No <span class="required">*</span></span>
             <input name="lrNo" maxlength="60" placeholder="e.g. 207" required>
+            <span id="lr-duplicate-warning" class="field-error" role="alert" hidden></span>
           </label>
           <label class="form-field">
             <span class="field-label">Truck No <span class="required">*</span></span>
@@ -284,41 +286,50 @@
           <h3 id="bank-pod-title" class="form-section-title"><span>🏦 Bank &amp; POD Details</span></h3>
           <button id="clear-bank-pod-details" class="btn btn-secondary btn-sm btn-clear-section" type="button" title="Clear bank and POD details only">Clear Bank &amp; POD Details</button>
         </div>
-        <div class="form-grid">
-          <label class="form-field">
-            <span class="field-label">Account No</span>
-            <input name="accountNo" list="account-suggestions" maxlength="40" autocomplete="off" placeholder="Bank account number">
-          </label>
-          <label class="form-field">
-            <span class="field-label">IFSC</span>
-            <input name="ifscCode" list="ifsc-suggestions" maxlength="20" autocapitalize="characters" placeholder="e.g. SBIN0010659" style="text-transform: uppercase;">
-          </label>
-          <label class="form-field">
-            <span class="field-label">Bank</span>
-            <input name="bank" list="bank-suggestions" maxlength="100" placeholder="Bank name / payment mode">
-          </label>
-          <label class="form-field">
-            <span class="field-label">POD received date</span>
-            <input name="podReceivedDate" type="date">
-          </label>
-          <label class="form-field">
-            <span class="field-label">Balance Date</span>
-            <input name="balanceDate" type="date">
-          </label>
-          <label class="form-field">
-            <span class="field-label">POD Balance Amount / Status</span>
-            <input name="podAmountStatus" maxlength="100" placeholder="Status or note">
-          </label>
-          <label class="form-field form-span">
-            <span class="field-label">Remarks</span>
-            <input name="remarks" maxlength="500" placeholder="Optional notes">
-          </label>
+        <div class="bank-pod-groups">
+          <section class="details-subsection" aria-labelledby="bank-details-subtitle">
+            <h4 id="bank-details-subtitle" class="details-subtitle">Bank details</h4>
+            <div class="details-grid">
+              <label class="form-field">
+                <span class="field-label">Account No</span>
+                <input name="accountNo" list="account-suggestions" maxlength="40" autocomplete="off" placeholder="Bank account number">
+              </label>
+              <label class="form-field">
+                <span class="field-label">IFSC</span>
+                <input name="ifscCode" list="ifsc-suggestions" maxlength="20" autocapitalize="characters" placeholder="e.g. SBIN0010659" style="text-transform: uppercase;">
+              </label>
+              <label class="form-field">
+                <span class="field-label">Bank</span>
+                <input name="bank" list="bank-suggestions" maxlength="100" placeholder="Bank name / payment mode">
+              </label>
+            </div>
+          </section>
+          <section class="details-subsection" aria-labelledby="pod-details-subtitle">
+            <h4 id="pod-details-subtitle" class="details-subtitle">POD and balance details</h4>
+            <div class="details-grid">
+              <label class="form-field">
+                <span class="field-label">POD received date</span>
+                <input name="podReceivedDate" type="date">
+              </label>
+              <label class="form-field">
+                <span class="field-label">Balance Date</span>
+                <input name="balanceDate" type="date">
+              </label>
+              <input type="hidden" name="podAmountStatus">
+              <div class="form-field">
+                <span class="pod-payment-status"><small>Calculated payment status</small><strong id="pod-payment-status" aria-live="polite">Enter valid freight and payment amounts</strong></span>
+              </div>
+              <label class="form-field details-grid-span">
+                <span class="field-label">Remarks</span>
+                <input name="remarks" maxlength="500" placeholder="Optional notes">
+              </label>
+            </div>
+          </section>
         </div>
       </section>
       <section class="form-section calculation-section" aria-labelledby="calculation-title">
         <div class="calculation-header-row">
           <h3 id="calculation-title" class="form-section-title"><span>📊 Live Calculation Summary</span></h3>
-          <button id="btn-fill-pending" class="btn btn-sm btn-fill-pending" type="button" title="Copy calculated Pending Amount to POD Balance Amount">⚡ Fill Pending Amount</button>
         </div>
         <div class="calculation-results">
           <label class="calculation-result calculation-result-billed">
@@ -330,7 +341,12 @@
             <input name="pendingAmount" readonly class="calculated-field" aria-live="polite">
           </label>
         </div>
-        <div class="calculation-hint">Balances update from the source amounts and status. COD / To-Pay text placeholders are preserved.</div>
+        <div class="receipt-summary-row">
+          <div id="receipt-balance-summary" class="receipt-balance-cards" hidden></div>
+          <button id="btn-record-receipt" class="btn btn-secondary btn-sm" type="button" hidden>＋ Record / Manage Payments</button>
+          <small id="receipt-management-hint" class="receipt-management-hint" hidden>Payments use saved shipment amounts. Save your shipment edits first if you changed its payment amounts.</small>
+        </div>
+        <div class="calculation-hint">Pending Amount: Tobilled follows the workbook formula. TOBILLED payments received reduce the final Pending Amount; COD / To-Pay text notes are preserved.</div>
       </section>
       <footer class="modal-actions">
         <button id="clear-all-dialog" class="btn btn-secondary btn-clear-all" type="button" title="Clear all currently entered form fields">🗑️ Clear All</button>
@@ -339,5 +355,54 @@
       </footer>
     </form>
   </dialog>
+
+  <dialog id="receipt-dialog" class="modal">
+    <form id="receipt-form" novalidate>
+      <header class="modal-header">
+        <div><p class="eyebrow">TOBILLED PAYMENT</p><h2 id="receipt-dialog-title">Record payment received</h2></div>
+        <button id="close-receipt-dialog" class="icon-button" type="button" aria-label="Close payment form">×</button>
+      </header>
+      <p id="receipt-shipment-meta" class="toolbar-help"></p>
+      <div id="receipt-error" class="notice notice-error" role="alert" hidden></div>
+      <div id="receipt-balance" class="receipt-balance-cards"></div>
+      <p id="receipt-entry-help" class="notice notice-info" role="status"></p>
+      <section id="receipt-entry-section" class="form-section" aria-labelledby="receipt-entry-title">
+        <h3 id="receipt-entry-title" class="form-section-title">Payment details</h3>
+        <div class="form-grid">
+          <label class="form-field">
+            <span class="field-label">Amount received (₹) <span class="required">*</span></span>
+            <input name="receivedAmount" inputmode="decimal" placeholder="Amount received" required>
+          </label>
+          <label class="form-field">
+            <span class="field-label">Date received <span class="required">*</span></span>
+            <input name="receivedDate" type="date" required>
+          </label>
+          <label class="form-field">
+            <span class="field-label">Payment mode <span class="required">*</span></span>
+            <select name="paymentMode" required>
+              <option value="" selected disabled>Choose payment mode</option>
+              <option value="Bank Transfer">Bank Transfer</option>
+              <option value="Cash">Cash</option>
+              <option value="UPI">UPI</option>
+              <option value="Other">Other</option>
+            </select>
+          </label>
+          <label class="form-field">
+            <span class="field-label">Transaction reference (optional)</span>
+            <input name="transactionReference" maxlength="120">
+          </label>
+        </div>
+      </section>
+      <section class="form-section" aria-labelledby="receipt-history-title">
+        <h3 id="receipt-history-title" class="form-section-title">Received payment history</h3>
+        <div id="receipt-history" class="table-wrap"></div>
+      </section>
+      <footer class="modal-actions">
+        <button id="cancel-receipt-dialog" class="btn btn-secondary" type="button">Cancel</button>
+        <button id="save-receipt" class="btn btn-primary" type="submit">Add Payment</button>
+      </footer>
+    </form>
+  </dialog>
+
 </body>
 </html>

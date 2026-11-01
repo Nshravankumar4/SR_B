@@ -18,6 +18,19 @@ Pending Amount = Pending Amount: Tobilled + Extra Amount - P/M
 For `A/TO-PAY` and `F/TO-PAY`, COD / To-Pay is calculated as `FRIGHT - T/M - ADVANCE - ADVANCE2 - ADVANCE3`. Final Pending Amount is `FRIGHT - T/M - ADVANCE - COD`; this evaluates to `ADVANCE2 + ADVANCE3`, and is zero for the current workbook rows because both fields are zero. Pending Amount: Tobilled is left blank for those statuses.
 
 No automatic floor is applied. A negative result remains negative.
+For example, FRIGHT ₹65,000 and ADVANCE ₹65,000 give Pending Amount: Tobilled ₹0; entering P/M ₹500 makes final Pending Amount −₹500.
+
+For TOBILLED shipments, recorded payments received are tracked separately and reduce the displayed outstanding balance:
+
+```text
+Remaining Pending Amount = formula-derived Pending Amount - total recorded receipts
+```
+
+Receipts do not alter the source amounts or workbook formulas. A receipt must be positive and cannot exceed the positive remaining balance. Negative formula-derived balances remain negative.
+While entering a receipt, the dialog previews the entered amount against the current received total and remaining balance in integer paise. The preview does not save data; the balance changes only after the backend accepts the payment. Invalid amounts and amounts above the remaining balance are rejected by both the UI and backend.
+Any signed-in user can undo a mistaken receipt by appending an audited reversal; the original receipt is retained and the reversed amount is added back to the remaining balance.
+
+The workbook's POD Amount Status formula evaluates to numeric zero for the tested rows. The app preserves any legacy POD Amount Status value for import/edit compatibility but no longer displays the column or input; payment status is derived separately from formula pending minus net receipts.
 
 ## COD / To-Pay
 

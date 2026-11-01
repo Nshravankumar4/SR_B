@@ -4,6 +4,16 @@
 
 Run Python's static server from the repository root (`D:\Repo\SR_B`) and open `http://127.0.0.1:8123/?preview=1`. The root `index.html` loads this folder's app assets. This is a read-only, empty preview, not a local database, login, or production mode.
 
+## Current production deployment
+
+The configured frontend points to the following Apps Script Web App deployment (updated November 1, 2026, 20:11):
+
+| Version | Deployment ID | Web App URL |
+|---|---|---|
+| 6 | `AKfycby1IyooUMB67tj9eLtgQSP1QtMKVUZ7FcNMcBLrAgKAl6LefwLDt6Wm5mdPxM9SPLwuMQ` | [Apps Script Web App](https://script.google.com/macros/s/AKfycby1IyooUMB67tj9eLtgQSP1QtMKVUZ7FcNMcBLrAgKAl6LefwLDt6Wm5mdPxM9SPLwuMQ/exec) |
+
+This deployment ID is configuration, not a credential. Do not publish user passwords or Script Properties.
+
 ## Create an independent Apps Script backend
 
 1. Sign in to the Google account that should own the new database and create a new standalone Apps Script project. Do not copy the SR_T project or its Script Properties.
@@ -28,8 +38,16 @@ The Web App may need to be reachable by both users for Google Apps Script's Web 
 
 ## Updating and backups
 
+- Before updating an existing deployment, create and verify a dated backup of the current spreadsheet. Updating the backend does not migrate or rewrite shipment JSON. Existing `Recoveries` tabs, if any, are left untouched and are no longer read or modified by this app.
+- The new payment-received feature writes only to a separate `Receipts` tab. `setupBrokerLedger()` creates that tab if it is missing, validates its header if it exists, and does not clear or rewrite existing shipment/payment data.
 - To update backend code, save the Apps Script project, create a **new version**, and update the deployment. The spreadsheet ID and records remain stored in Script Properties and the existing spreadsheet.
-- The app's administrator backup operation creates a dated copy of the Google spreadsheet in the deployment owner's Drive. Verify that Drive permissions and retention meet your needs.
+- After replacing `Code.gs`, run `setupBrokerLedger()` once against the existing Script Properties and confirm the `Shipments` data remains before updating the Web App deployment.
+- Deploy the frontend and backend changes together so the live app uses the same calculation and API behavior.
+- Publish the latest `index.html` and `Broker-Ledger/` assets for dashboard Done/Pending filters and the ledger/sheet receipt columns. Receipt entries continue to use the existing `Receipts` backend tab.
+- Live receipt-entry balance previews are a frontend-only change; publish the latest `index.html` and `Broker-Ledger/js/` assets. No Apps Script redeployment or spreadsheet migration is required for this preview.
+- For receipt reversal and blank POD Amount / Status handling, copy the current `backend/Code.gs` into the existing Apps Script project, save, run `setupBrokerLedger()` if the project setup/schema needs verification, and deploy a new Web App version. Then publish the updated repository-root `index.html` and `Broker-Ledger/` assets; the existing deployment URL should remain the configured backend URL.
+- Unique LR No validation is enforced by both the form and Apps Script backend. Copy the current `backend/Code.gs` to the existing Apps Script project and deploy a new Web App version, then publish the updated `index.html` and `Broker-Ledger/` assets. The configured `/exec` URL can remain unchanged when updating the existing deployment.
+- Any signed-in user can create a dated copy of the Google spreadsheet in the deployment owner's Drive. Verify that Drive permissions and retention meet your needs.
 - To restore, use Google Drive/Sheets to recover a backup. This project intentionally does not expose an unauthenticated restore endpoint.
 
 ## GitHub Pages

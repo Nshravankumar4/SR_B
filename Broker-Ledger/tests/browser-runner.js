@@ -32,6 +32,40 @@
     equal(result.codToPay, 38500);
     equal(result.pendingAmount, 1500);
   });
+  check('P/M updates final pending and retains overpayment as a negative balance', function () {
+    const result = c.calculateShipment({
+      toPayStatus: 'TOBILLED', freight: '65,000', advance: '65,000',
+      tM: '', advance2: '', advance3: '', extraAmount: '', pM: '500'
+    });
+    equal(result.pendingTobilled, 0);
+    equal(result.pendingAmount, -500);
+  });
+  check('received payments reduce only TOBILLED final pending balances', function () {
+    const balance = window.BrokerReceipts.calculateBalance(10000, [
+      { shipmentId: 'shipment-1', receivedAmount: 10000 }
+    ], 'shipment-1');
+    equal(balance.remainingPaise, 0);
+    equal(balance.receivedPaise, 1000000);
+  });
+  check('received amount preview updates totals without mutating saved balance', function () {
+    const balance = window.BrokerReceipts.calculateBalance(231000, [
+      { id: 'existing', shipmentId: 'shipment-1', receivedAmount: 10000 }
+    ], 'shipment-1');
+    const preview = window.BrokerReceipts.previewBalance(balance, 2500000);
+    equal(preview.receivedPaise, 3500000);
+    equal(preview.remainingPaise, 19600000);
+    equal(preview.status, 'PARTIAL');
+    equal(balance.receivedPaise, 1000000);
+    equal(balance.remainingPaise, 22100000);
+  });
+  check('received amount preview detects full payment and rejects over-balance amounts', function () {
+    const balance = window.BrokerReceipts.calculateBalance(100, [], 'shipment-1');
+    equal(window.BrokerReceipts.previewBalance(balance, 10000).status, 'PAID');
+    let rejected = false;
+    try { window.BrokerReceipts.previewBalance(balance, 10001); }
+    catch (error) { rejected = true; }
+    equal(rejected, true);
+  });
   check('status case and whitespace normalize to canonical values', function () {
     equal(c.normalizeStatus(' a / to-pay '), 'A/TO-PAY');
     equal(c.calculateShipment(Object.assign({}, fixture[2], { toPayStatus: ' a / to-pay ' })).codToPay, 40000);
@@ -105,24 +139,23 @@
     rows[3].codToPay = 'stale';
     equal(c.summarize(rows).codToPayPaise, 8200000);
   });
-  check('duplicate detection identifies matching LR No, date, and truck while allowing editing', function () {
+  check('duplicate detection rejects repeated LR No regardless of date or truck while allowing editing', function () {
     const existing = [
       { id: 'rec-1', lrNo: 'LR-100', date: '2026-10-27', truckNo: 'AP39UD3564' },
       { id: 'rec-2', lrNo: 'LR-101', date: '2026-10-28', truckNo: 'TG15T6666' }
     ];
     function isDup(candidate, editingId) {
-      const candidateKey = [candidate.lrNo, candidate.date, candidate.truckNo].map(function (v) { return String(v || '').trim().toLowerCase(); }).join('|');
+      const candidateKey = String(candidate.lrNo || '').trim().toLowerCase();
       return existing.some(function (item) {
         if (editingId && item.id === editingId) return false;
-        const itemKey = [item.lrNo, item.date, item.truckNo].map(function (v) { return String(v || '').trim().toLowerCase(); }).join('|');
+        const itemKey = String(item.lrNo || '').trim().toLowerCase();
         return itemKey === candidateKey;
       });
     }
     equal(isDup({ lrNo: 'LR-100', date: '2026-10-27', truckNo: 'AP39UD3564' }, null), true);
-    equal(isDup({ lrNo: ' lr-100 ', date: '2026-10-27', truckNo: 'ap39ud3564' }, null), true);
+    equal(isDup({ lrNo: ' lr-100 ', date: '2026-10-29', truckNo: 'different-truck' }, null), true);
     equal(isDup({ lrNo: 'LR-100', date: '2026-10-27', truckNo: 'AP39UD3564' }, 'rec-1'), false);
     equal(isDup({ lrNo: 'LR-102', date: '2026-10-27', truckNo: 'AP39UD3564' }, null), false);
-    equal(isDup({ lrNo: 'LR-100', date: '2026-10-29', truckNo: 'AP39UD3564' }, null), false);
   });
   check('form status changes preserve advance, deduction, and note values without destructive clearing', function () {
     const original = {

@@ -15,10 +15,14 @@ The application starts with an empty ledger. The example shipments in `tests/fix
 - Shared calculation/validation logic on the browser and server.
 - Separate `Pending Amount: Tobilled` and final `Pending Amount`.
 - Calculates COD / To-Pay for A/TO-PAY and F/TO-PAY from workbook source fields; preserves TOBILLED text notes.
-- Excel/CSV import with preview and duplicate checks; styled ExcelJS export visually matching application theme (custom colored headers, alternating rows, total summary row, frozen panes).
+- Tracks received TOBILLED payments in a separate append-only ledger; the payment dialog previews live balances as amounts are entered, and signed-in users can reverse mistaken receipts without erasing history.
+- Shows the receipt amount and derived payment status in the shipment form, with full Received / Remaining / Status details in the payment dialog. Blank POD fields remain blank.
+- Shows Done / Pending shipment counts on the dashboard and lets users open filtered records in the Live Excel Sheet; the ledger and sheet also show received total, latest receipt date/mode, and payment status.
+- Requires each shipment to have a unique LR No; duplicate entries are flagged in the form and rejected by the backend, including imports.
+- Excel/CSV import with preview and duplicate checks; styled ExcelJS export matching the application theme (colored headers, alternating rows, totals, frozen panes). Export failure is reported rather than silently downloading an unstyled workbook.
 - Live Excel Sheet full-ledger view with real-time dynamic column totals.
 - Dashboard with Total Ledger Closing outstanding metric and Transporter Pending Balance Payments panel.
-- Google Sheets as the backend's authoritative store; Apps Script locking, non-blocking authentication, sessions, role checks, audit entries, and administrator backups.
+- Google Sheets as the backend's authoritative store; Apps Script locking, non-blocking authentication, sessions, role checks, audit entries, and signed-in user backups.
 - No SR_T production URL, spreadsheet, record, password, or token is used.
 
 ## Project layout
@@ -91,6 +95,8 @@ Pending Amount (A/TO-PAY or F/TO-PAY) = FRIGHT - T/M - ADVANCE - COD / To-Pay
 
 For To-Pay statuses the final pending amount reduces to ADVANCE2 + ADVANCE3; it is zero for the current workbook rows because both are zero. TOBILLED notes such as `if Tobilled NA` remain text and are excluded from numeric totals. See [docs/CALCULATIONS.md](docs/CALCULATIONS.md) for the workbook cell formulas, tests, and edge cases.
 
+Received-payment totals reduce only the displayed TOBILLED final pending balance. The payment form previews Received, Remaining, and Status as an amount is typed; nothing is saved until Add Payment is selected. Legacy POD Amount Status data remains available to import/export compatibility but is hidden from the form and spreadsheet views.
+
 ## Data and field definitions
 
 The shipment data fields, status contract, and distinction between the two pending columns are documented in [docs/DATA-MODEL.md](docs/DATA-MODEL.md). The app and workbook import use the same source names and order as the Broker Ledger sheet. Derived fields are recalculated from source values whenever records are loaded, saved, imported, or exported.
@@ -100,20 +106,20 @@ The shipment data fields, status contract, and distinction between the two pendi
 With Node.js 18 or later:
 
 ```powershell
-node --test tests\calculations.test.js tests\validation.test.js tests\summaries.test.js
+node --test tests\calculations.test.js tests\validation.test.js tests\summaries.test.js tests\receipts.test.js tests\backend-receipts.test.js
 ```
 
 Run the command from `D:\Repo\SR_B\Broker-Ledger`. The same calculation and validation checks can be run in a browser by serving `D:\Repo\SR_B` and opening `/Broker-Ledger/tests/browser-runner.html`. Test coverage and end-to-end checks are listed in [docs/TESTING.md](docs/TESTING.md).
 
-## Backup, recovery, and security
+## Backups and security
 
 - The Google Sheet is the live source of truth. Restrict its sharing to trusted administrators.
-- Admins can create a dated Google Drive copy from the app. Retain separate Drive history or manually download a copy for additional recovery protection.
+- Signed-in users can create a dated Google Drive copy from the app. Copies are stored in the deployment owner's Drive; restrict Drive sharing and retain separate history for recovery.
 - Account numbers and IFSC details are sensitive. Use HTTPS, strong individual passwords, and least-privilege access.
-- The backend validates every write. Employees cannot delete records or create backups, even if they construct API requests themselves.
+- The backend validates every write. Employees cannot delete shipment records, even if they construct API requests themselves.
 - The app does not contain passwords, API secrets, or production data.
 - See [docs/SECURITY.md](docs/SECURITY.md) for security boundaries and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for setup and redeployment.
 
 ## Third-party library
 
-Excel import/export uses the locally bundled SheetJS Community Edition distribution in `libs/xlsx.full.min.js`. Its attribution and license are in `libs/THIRD_PARTY_NOTICES.md` and `libs/LICENSE-APACHE-2.0.txt`.
+Excel import uses the locally bundled SheetJS Community Edition distribution in `libs/xlsx.full.min.js`; styled Excel export uses the locally bundled ExcelJS distribution in `libs/exceljs.min.js`. Attribution and license details are in `libs/THIRD_PARTY_NOTICES.md`.
