@@ -15,7 +15,7 @@ The application starts with an empty ledger. The example shipments in `tests/fix
 - Shared calculation/validation logic on the browser and server.
 - Separate `Pending Amount: Tobilled` and final `Pending Amount`.
 - Calculates COD / To-Pay for A/TO-PAY and F/TO-PAY from workbook source fields; preserves TOBILLED text notes.
-- Tracks received TOBILLED payments in a separate append-only ledger; signed-in users can reverse mistaken receipts without erasing history.
+- Tracks received TOBILLED payments in a separate append-only ledger; the payment dialog previews live balances as amounts are entered, and signed-in users can reverse mistaken receipts without erasing history.
 - Shows the receipt amount and derived payment status in the shipment form, with full Received / Remaining / Status details in the payment dialog. Blank POD fields remain blank.
 - Shows Done / Pending shipment counts on the dashboard and lets users open filtered records in the Live Excel Sheet; the ledger and sheet also show received total, latest receipt date/mode, and payment status.
 - Excel/CSV import with preview and duplicate checks; styled ExcelJS export visually matching application theme (custom colored headers, alternating rows, total summary row, frozen panes).
@@ -94,7 +94,7 @@ Pending Amount (A/TO-PAY or F/TO-PAY) = FRIGHT - T/M - ADVANCE - COD / To-Pay
 
 For To-Pay statuses the final pending amount reduces to ADVANCE2 + ADVANCE3; it is zero for the current workbook rows because both are zero. TOBILLED notes such as `if Tobilled NA` remain text and are excluded from numeric totals. See [docs/CALCULATIONS.md](docs/CALCULATIONS.md) for the workbook cell formulas, tests, and edge cases.
 
-Received-payment totals reduce only the displayed TOBILLED final pending balance. The POD Balance Amount / Status field remains optional user data: calculation results do not silently insert `0` into it. The form shows derived status (Payment pending, Partially received, Fully received, Settled, or Credit balance) separately.
+Received-payment totals reduce only the displayed TOBILLED final pending balance. The payment form previews Received, Remaining, and Status as an amount is typed; nothing is saved until Add Payment is selected. Legacy POD Amount Status data remains available to import/export compatibility but is hidden from the form and spreadsheet views.
 
 ## Data and field definitions
 

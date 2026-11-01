@@ -34,6 +34,25 @@
     return 'Credit balance';
   }
 
+  function previewBalance(balance, amountPaise) {
+    if (!balance || !Number.isSafeInteger(balance.originalPaise) ||
+        !Number.isSafeInteger(balance.receivedPaise) ||
+        !Number.isSafeInteger(amountPaise) || amountPaise <= 0) {
+      throw new Error('Enter a valid received amount.');
+    }
+    if (!Number.isSafeInteger(balance.remainingPaise) || amountPaise > balance.remainingPaise) {
+      throw new Error('Received amount exceeds the remaining balance.');
+    }
+    const receivedPaise = balance.receivedPaise + amountPaise;
+    if (!Number.isSafeInteger(receivedPaise)) throw new Error('Preview amount is too large.');
+    return {
+      originalPaise: balance.originalPaise,
+      receivedPaise: receivedPaise,
+      remainingPaise: balance.remainingPaise - amountPaise,
+      status: balance.remainingPaise === amountPaise ? 'PAID' : 'PARTIAL'
+    };
+  }
+
   function summarize(records, receipts) {
     const summary = root.BrokerCalculations.summarize(records);
     (records || []).forEach(function (record) {
@@ -48,6 +67,7 @@
 
   const api = Object.freeze({
     calculateBalance: calculateBalance,
+    previewBalance: previewBalance,
     paymentStatus: paymentStatus,
     summarize: summarize
   });

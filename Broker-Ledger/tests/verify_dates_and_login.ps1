@@ -48,6 +48,20 @@ $t22 = $appJs.Contains("const isAdmin = Boolean(state.user && state.user.role ==
        $appJs.Contains("(isAdmin ? '<th>Delete</th>' : '')") -and `
        $appJs.Contains("const adminTools = state.user ?") -and `
        $appJs.Contains("!wasReversed && state.user")
+$t23 = $appJs.Contains("const DISPLAY_FIELDS = FIELD_ORDER.filter(function (field) { return field !== 'podAmountStatus'; });") -and `
+       $appJs.Contains("DISPLAY_FIELDS.map(function (field) { return headerCell(field, true); })") -and `
+       $appJs.Contains("ws.columns = DISPLAY_FIELDS.map(function (field)") -and `
+       $appJs.Contains("FIELD_ORDER.forEach(function (field)")
+$t24 = $appJs.Contains("toast('Shipment was not saved. ' + error.message, 'error');") -and `
+       $appJs.Contains("closeShipmentDialog();") -and `
+       $appJs.Contains("toast((isEditing ? 'Shipment updated.' : 'Shipment saved.')")
+$receiptsJs = Get-Content -Raw "Broker-Ledger/js/receipts.js"
+$indexHtml = Get-Content -Raw "index.html"
+$t25 = $receiptsJs.Contains("function previewBalance(balance, amountPaise)") -and `
+       $appJs.Contains("elements.receivedAmount.addEventListener('input', renderReceiptEntryPreview)") -and `
+       $appJs.Contains("RECEIPTS.previewBalance(balance, amount.paise)") -and `
+       $appJs.Contains("It is recorded only after you select Add Payment.") -and `
+       $indexHtml.Contains("receipts.js?v=20261101-6")
 
 $results = @(
   @{ Name = "1. Form: 1st Advance Given Date separate input"; Ok = $t1 },
@@ -71,7 +85,10 @@ $results = @(
   @{ Name = "19. UI: Separate derived payment status and non-duplicated receipt summary"; Ok = $t19 },
   @{ Name = "20. UI: Received-payment management works in View/Edit and hides unavailable entry inputs"; Ok = $t20 },
   @{ Name = "21. UI: Dashboard Done filter and sheet payment mode/date/amount/status columns"; Ok = $t21 },
-  @{ Name = "22. Permissions: Rudra has other actions but not the shipment Delete column"; Ok = $t22 }
+  @{ Name = "22. Permissions: Rudra has other actions but not the shipment Delete column"; Ok = $t22 },
+  @{ Name = "23. UI/export: POD Amount Status column hidden while underlying data is retained"; Ok = $t23 },
+  @{ Name = "24. UI: Successful shipment saves close the dialog and failures show an error"; Ok = $t24 },
+  @{ Name = "25. Payments: Received amount previews live and applies only after confirmation"; Ok = $t25 }
 )
 
 $passed = 0

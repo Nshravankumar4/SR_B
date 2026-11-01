@@ -22,7 +22,9 @@ powershell -ExecutionPolicy Bypass -Command "& '.\verify_broker_ledger.ps1'; & '
    - Double-click submission prevention.
    - Exact mathematical formula verification against workbook test rows.
    - POD Balance Amount / Status remains blank unless supplied, while the separate calculated payment-status display updates from pending and receipt totals.
+   - POD Amount Status is omitted from the ledger, Live Excel Sheet, and exported workbook while existing stored values remain available to imports and edits.
    - In the shipment form, the receipt summary avoids repeating Remaining because the final Pending Amount field already shows that value; the management dialog shows Received, Remaining, and Status together.
+   - Receipt entry recalculates the preview as the amount changes, rejects invalid/over-balance values, and does not persist the preview until Add Payment is selected.
    - Dashboard Done/Pending cards, exact-shipment sheet navigation, received total/latest date/payment mode columns, and payment entry visibility when a balance is zero.
    - Decimal paise precision and negative balance preservation.
 
@@ -39,7 +41,7 @@ powershell -ExecutionPolicy Bypass -Command "& '.\verify_broker_ledger.ps1'; & '
    - Dynamic button labels: `Add & Submit Shipment` and `Update Shipment`.
    - Sub-second non-blocking login.
    - Password visibility toggle with click/pointer handling.
-   - Receipt history, reversal behavior, and preservation of blank/user-entered POD values are covered by `receipts.test.js` and `backend-receipts.test.js`; verify the deployed app that receiving ₹10,000 against ₹10,000 TOBILLED pending displays ₹0, then reversing it restores ₹10,000 and leaves the original receipt in history.
+   - Receipt history, live amount preview, reversal behavior, and preservation of blank/user-entered POD values are covered by `receipts.test.js` and `backend-receipts.test.js`; verify the deployed app that receiving ₹10,000 against ₹10,000 TOBILLED pending previews ₹0, then saves ₹0, and reversing it restores ₹10,000 while leaving the original receipt in history.
 
 ## Browser checks
 

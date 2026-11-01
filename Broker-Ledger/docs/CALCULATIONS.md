@@ -27,9 +27,10 @@ Remaining Pending Amount = formula-derived Pending Amount - total recorded recei
 ```
 
 Receipts do not alter the source amounts or workbook formulas. A receipt must be positive and cannot exceed the positive remaining balance. Negative formula-derived balances remain negative.
-An administrator can undo a mistaken receipt by appending an audited reversal; the original receipt is retained and the reversed amount is added back to the remaining balance.
+While entering a receipt, the dialog previews the entered amount against the current received total and remaining balance in integer paise. The preview does not save data; the balance changes only after the backend accepts the payment. Invalid amounts and amounts above the remaining balance are rejected by both the UI and backend.
+Any signed-in user can undo a mistaken receipt by appending an audited reversal; the original receipt is retained and the reversed amount is added back to the remaining balance.
 
-The workbook's POD Amount Status formula evaluates to numeric zero for the tested rows, but the app does not write that derived zero into the editable POD Balance Amount / Status field. That field is optional user-entered amount/status data and stays blank when not supplied. The form displays a separate payment status derived from formula pending minus net receipts.
+The workbook's POD Amount Status formula evaluates to numeric zero for the tested rows. The app preserves any legacy POD Amount Status value for import/edit compatibility but no longer displays the column or input; payment status is derived separately from formula pending minus net receipts.
 
 ## COD / To-Pay
 

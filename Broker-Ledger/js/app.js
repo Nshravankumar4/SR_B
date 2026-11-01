@@ -36,6 +36,7 @@
     'unloadingDate', 'podReceivedDate', 'balanceDate', 'codToPay', 'pendingTobilled', 'extraAmount', 'pmPaDate',
     'pM', 'pendingAmount', 'podAmountStatus', 'remarks', 'toPayStatus'
   ];
+  const DISPLAY_FIELDS = FIELD_ORDER.filter(function (field) { return field !== 'podAmountStatus'; });
   const LABELS = {
     slNo: 'SL NO', transportName: 'TRSP NAME', date: 'DATE', lrNo: 'LR NO', truckNo: 'TRUCK NO',
     from: 'FROM', to: 'TO', accountNo: 'ACCOUNT NO', ifscCode: 'IFSC CODE', bank: 'PAYMENT MADE',
@@ -600,11 +601,11 @@
     const receiptHeads = includeReceiptDetails
       ? '<th class="numeric">Received Amount</th><th>Latest Received Date</th><th>Payment Mode</th><th>Payment Status</th>'
       : '';
-    const heads = FIELD_ORDER.map(function (field) { return headerCell(field, actions); }).join('') +
+    const heads = DISPLAY_FIELDS.map(function (field) { return headerCell(field, actions); }).join('') +
       receiptHeads +
       (actions ? '<th>View</th><th>Payments</th><th>Edit</th>' + (isAdmin ? '<th>Delete</th>' : '') : '');
     const rows = records.map(function (record) {
-      const cells = FIELD_ORDER.map(function (field) { return recordCell(record, field); }).join('');
+      const cells = DISPLAY_FIELDS.map(function (field) { return recordCell(record, field); }).join('');
       const receiptDetails = includeReceiptDetails ? receiptTableCells(record) : '';
       const eligibleForReceipts = CALC.normalizeStatus(record.toPayStatus) === 'TOBILLED';
       const actionCell = actions
@@ -708,13 +709,13 @@
         '<button class="btn btn-secondary btn-sm sheet-clear-filter-btn" type="button" data-action="clear-sheet-filter">✕ Show all records</button>' +
       '</div>') : '';
     const rows = fullRecords.length ? fullRecords.map(function (record) {
-      return '<tr data-id="' + escapeHtml(record.id) + '">' + FIELD_ORDER.map(function (field) {
+      return '<tr data-id="' + escapeHtml(record.id) + '">' + DISPLAY_FIELDS.map(function (field) {
         return recordCell(record, field).replace('<td', '<td');
       }).join('') + receiptTableCells(record) + '</tr>';
-    }).join('') : '<tr><td class="empty-state" colspan="' + (FIELD_ORDER.length + 4) + '">' +
+    }).join('') : '<tr><td class="empty-state" colspan="' + (DISPLAY_FIELDS.length + 4) + '">' +
       (state.loadingRecords ? 'Loading the latest shipment data…' :
         (state.loadError ? escapeHtml(state.loadError) : (state.sheetFilter ? 'No shipments matching active filter: ' + escapeHtml(state.sheetFilter.label) : 'No shipments in the ledger.'))) + '</td></tr>';
-    const totalsCells = FIELD_ORDER.map(function (field, idx) {
+    const totalsCells = DISPLAY_FIELDS.map(function (field, idx) {
       if (idx === 0) return '<td class="total-label">TOTAL (' + fullRecords.length + ' records)</td>';
       if (field === 'freight') return '<td class="numeric">' + formatMoneyPaise(summary.freightPaise) + '</td>';
       if (field === 'tM') return '<td class="numeric">' + formatMoneyPaise(summary.tMPaise) + '</td>';
@@ -736,7 +737,7 @@
       filterBanner +
       '<div class="table-meta"><span>' + fullRecords.length + ' rows ' + (state.sheetFilter ? '(filtered view)' : '(full ledger)') + '</span><span>Calculated columns are highlighted.</span></div>' +
       '<div id="sheet-wrap" class="sheet-wrap" tabindex="0" aria-label="Spreadsheet-style shipment ledger"><table class="sheet-table"><thead><tr>' +
-      FIELD_ORDER.map(function (field) { return headerCell(field, true); }).join('') +
+      DISPLAY_FIELDS.map(function (field) { return headerCell(field, true); }).join('') +
       '<th class="numeric">Received Amount</th><th>Latest Received Date</th><th>Payment Mode</th><th>Payment Status</th>' +
       '</tr></thead><tbody>' + rows + '</tbody><tfoot>' + totals + '</tfoot></table></div>' +
       '<div class="summary-strip"><span>Freight: <strong>' + formatMoneyPaise(summary.freightPaise) + '</strong></span><span>Pending: <strong>' +
@@ -1182,6 +1183,50 @@
       }).join('') + '</tbody></table>';
   }
 
+  function renderReceiptEntryPreview() {
+    const shipment = state.records.find(function (record) {
+      return record.id === state.receiptShipmentId;
+    });
+    const form = byId('receipt-form');
+    const balanceNode = byId('receipt-balance');
+    const errorBox = byId('receipt-error');
+    if (!shipment || !form || !balanceNode) return;
+
+    const balance = receiptTotals(shipment);
+    if (!balance) {
+      balanceNode.textContent = receiptSummaryText(shipment);
+      return;
+    }
+
+    const amountText = form.elements.receivedAmount.value.trim();
+    errorBox.hidden = true;
+    errorBox.textContent = '';
+    if (!amountText) {
+      balanceNode.innerHTML = receiptBalanceMarkup(balance);
+      return;
+    }
+
+    const amount = CALC.parseMoney(amountText);
+    if (!amount.ok || amount.paise <= 0) {
+      errorBox.textContent = amount.ok
+        ? 'Amount received must be greater than zero.'
+        : amount.error;
+      errorBox.hidden = false;
+      balanceNode.innerHTML = receiptBalanceMarkup(balance);
+      return;
+    }
+    if (amount.paise > balance.remainingPaise) {
+      errorBox.textContent = 'Amount exceeds the remaining balance of ' +
+        formatMoneyPaise(balance.remainingPaise) + '.';
+      errorBox.hidden = false;
+      balanceNode.innerHTML = receiptBalanceMarkup(balance);
+      return;
+    }
+
+    const preview = RECEIPTS.previewBalance(balance, amount.paise);
+    balanceNode.innerHTML = receiptBalanceMarkup(preview);
+  }
+
   function openReceiptDialog(shipmentId) {
     const shipment = state.records.find(function (record) { return record.id === shipmentId; });
     if (!shipment || CALC.normalizeStatus(shipment.toPayStatus) !== 'TOBILLED') {
@@ -1200,11 +1245,12 @@
       'LR No ' + (shipment.lrNo || '') + ' · ' + (shipment.transportName || '');
     if (balance) byId('receipt-balance').innerHTML = receiptBalanceMarkup(balance);
     else byId('receipt-balance').textContent = receiptSummaryText(shipment);
+    renderReceiptEntryPreview();
     const canRecord = Boolean(balance && balance.remainingPaise > 0);
     byId('receipt-entry-section').hidden = !canRecord;
     byId('receipt-entry-help').hidden = false;
     byId('receipt-entry-help').textContent = canRecord
-      ? 'Record the amount, date, and mode received. Payments are applied to this saved TOBILLED shipment.'
+      ? 'Received, Remaining, and Status preview your amount as you type. It is recorded only after you select Add Payment.'
       : 'No positive balance is available to receive. Use the history below to review or undo a recorded receipt.';
     Array.from(form.elements).forEach(function (element) {
       if (element.name) element.disabled = !canRecord;
@@ -1250,7 +1296,7 @@
           if (element.name) element.disabled = !canRecord;
         });
         byId('receipt-entry-help').textContent = canRecord
-          ? 'You can now record the correct payment amount if needed.'
+          ? 'Received, Remaining, and Status preview your amount as you type. It is recorded only after you select Add Payment.'
           : 'No positive balance is available to receive. Use the history below to review or undo a recorded receipt.';
         byId('save-receipt').disabled = !canRecord;
         renderReceiptHistory(shipmentId);
@@ -1284,6 +1330,16 @@
       return;
     }
     const shipmentId = state.receiptShipmentId;
+    const shipment = state.records.find(function (record) { return record.id === shipmentId; });
+    const balance = shipment ? receiptTotals(shipment) : null;
+    if (!balance || parsedAmount.paise > balance.remainingPaise) {
+      errorBox.textContent = balance
+        ? 'Amount exceeds the remaining balance of ' + formatMoneyPaise(balance.remainingPaise) + '.'
+        : 'Shipment balance is unavailable. Refresh the ledger and try again.';
+      errorBox.hidden = false;
+      renderReceiptEntryPreview();
+      return;
+    }
     const saveButton = byId('save-receipt');
     saveButton.disabled = true;
     errorBox.hidden = true;
@@ -1334,8 +1390,10 @@
     const validation = VALIDATION.validateShipment(record);
     const errorBox = byId('form-error');
     if (!validation.valid) {
-      errorBox.textContent = errorList(validation.errors);
+      const message = errorList(validation.errors);
+      errorBox.textContent = message;
       errorBox.hidden = false;
+      toast('Shipment was not saved. ' + message, 'error');
       return;
     }
 
@@ -1351,8 +1409,10 @@
       return itemIdentity === recordIdentity;
     });
     if (isDuplicate) {
-      errorBox.textContent = 'A shipment with this LR No, date, and truck already exists.';
+      const message = 'A shipment with this LR No, date, and truck already exists.';
+      errorBox.textContent = message;
       errorBox.hidden = false;
+      toast(message, 'error');
       return;
     }
 
@@ -1377,6 +1437,7 @@
         }
       }
       errorBox.hidden = false;
+      toast('Shipment was not saved. ' + error.message, 'error');
       setBusy(false);
       if (saveBtn) {
         saveBtn.disabled = false;
@@ -1464,7 +1525,7 @@
           views: [{ state: 'frozen', ySplit: 1, showGridLines: true }]
         });
 
-        ws.columns = FIELD_ORDER.map(function (field) {
+        ws.columns = DISPLAY_FIELDS.map(function (field) {
           const label = LABELS[field] || field;
           let width = Math.max(12, Math.min(32, label.length + 4));
           if (field === 'slNo') width = 8;
@@ -1491,7 +1552,7 @@
         const headerRow = ws.getRow(1);
         headerRow.height = 28;
         headerRow.eachCell(function (cell, colNumber) {
-          const field = FIELD_ORDER[colNumber - 1];
+          const field = DISPLAY_FIELDS[colNumber - 1];
           cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
           cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
           cell.border = thinBorder;
@@ -1504,7 +1565,7 @@
 
         data.forEach(function (record, rowIndex) {
           const rowData = {};
-          FIELD_ORDER.forEach(function (field) {
+          DISPLAY_FIELDS.forEach(function (field) {
             if (DATE_FIELDS.has(field)) {
               rowData[field] = dateForExport(record[field]);
             } else if (field === 'codToPay') {
@@ -1527,7 +1588,7 @@
           const isEven = rowIndex % 2 === 1;
 
           row.eachCell({ includeEmpty: true }, function (cell, colNumber) {
-            const field = FIELD_ORDER[colNumber - 1];
+            const field = DISPLAY_FIELDS[colNumber - 1];
             cell.border = thinBorder;
             cell.font = { name: 'Calibri', size: 10, color: { argb: 'FF111827' } };
             cell.alignment = { vertical: 'middle' };
@@ -1566,7 +1627,7 @@
         });
 
         const totalsData = {};
-        FIELD_ORDER.forEach(function (f) { totalsData[f] = ''; });
+        DISPLAY_FIELDS.forEach(function (f) { totalsData[f] = ''; });
         totalsData.slNo = 'TOTAL (' + data.length + ' shipments)';
         totalsData.freight = CALC.fromPaise(summary.freightPaise);
         totalsData.tM = CALC.fromPaise(summary.tMPaise);
@@ -1590,7 +1651,7 @@
         };
 
         totRow.eachCell({ includeEmpty: true }, function (cell, colNumber) {
-          const field = FIELD_ORDER[colNumber - 1];
+          const field = DISPLAY_FIELDS[colNumber - 1];
           cell.fill = totalYellowFill;
           cell.font = { name: 'Calibri', size: 10, bold: true, color: { argb: 'FF000000' } };
           cell.border = totalBorder;
@@ -1630,7 +1691,7 @@
       return;
     }
     const rows = data.map(function (record) {
-      return FIELD_ORDER.map(function (field) {
+      return DISPLAY_FIELDS.map(function (field) {
         if (DATE_FIELDS.has(field)) return dateForExport(record[field]);
         if (field === 'codToPay') {
           const parsed = CALC.parseMoney(record[field], { allowEmpty: true });
@@ -1644,7 +1705,7 @@
         return record[field] === null || record[field] === undefined ? '' : record[field];
       });
     });
-    const totals = FIELD_ORDER.map(function (field, idx) {
+    const totals = DISPLAY_FIELDS.map(function (field, idx) {
       if (idx === 0) return 'TOTAL (' + data.length + ' shipments)';
       if (field === 'freight') return CALC.fromPaise(summary.freightPaise);
       if (field === 'tM') return CALC.fromPaise(summary.tMPaise);
@@ -1658,8 +1719,8 @@
       if (field === 'pendingAmount') return CALC.fromPaise(summary.pendingAmountPaise);
       return '';
     });
-    const worksheet = window.XLSX.utils.aoa_to_sheet([FIELD_ORDER.map(function (field) { return LABELS[field]; })].concat(rows, [totals]));
-    worksheet['!cols'] = FIELD_ORDER.map(function (field) { return { wch: Math.max(12, Math.min(30, LABELS[field].length + 3)) }; });
+    const worksheet = window.XLSX.utils.aoa_to_sheet([DISPLAY_FIELDS.map(function (field) { return LABELS[field]; })].concat(rows, [totals]));
+    worksheet['!cols'] = DISPLAY_FIELDS.map(function (field) { return { wch: Math.max(12, Math.min(30, LABELS[field].length + 3)) }; });
     const workbook = window.XLSX.utils.book_new();
     window.XLSX.utils.book_append_sheet(workbook, worksheet, 'Broker Ledger');
     window.XLSX.writeFile(workbook, filename);
@@ -1988,6 +2049,8 @@
       if (event.target === byId('receipt-dialog')) closeReceiptDialog();
     });
     byId('receipt-form').addEventListener('submit', saveReceipt);
+    byId('receipt-form').elements.receivedAmount.addEventListener('input', renderReceiptEntryPreview);
+    byId('receipt-form').elements.receivedAmount.addEventListener('change', renderReceiptEntryPreview);
     byId('receipt-history').addEventListener('click', function (event) {
       const button = event.target.closest('[data-action="reverse-receipt"]');
       if (button) reverseReceipt(button.dataset.id);

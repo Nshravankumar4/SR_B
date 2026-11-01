@@ -22,6 +22,35 @@ test('TOBILLED receipts reduce only their shipment final pending amount', functi
   ]).pendingAmountPaise, 0);
 });
 
+test('received amount preview recalculates totals and remaining balance in paise', function () {
+  const balance = receipts.calculateBalance(231000, [
+    { id: 'existing', shipmentId: 'shipment-1', receivedAmount: 10000 }
+  ], 'shipment-1');
+  const preview = receipts.previewBalance(balance, 25000 * 100);
+  assert.deepEqual(preview, {
+    originalPaise: 23100000,
+    receivedPaise: 3500000,
+    remainingPaise: 19600000,
+    status: 'PARTIAL'
+  });
+  assert.equal(balance.receivedPaise, 1000000);
+  assert.equal(balance.remainingPaise, 22100000);
+});
+
+test('received amount preview marks a fully paid shipment', function () {
+  const balance = receipts.calculateBalance(231000, [], 'shipment-1');
+  const preview = receipts.previewBalance(balance, 23100000);
+  assert.equal(preview.receivedPaise, 23100000);
+  assert.equal(preview.remainingPaise, 0);
+  assert.equal(preview.status, 'PAID');
+});
+
+test('received amount preview rejects invalid or over-balance amounts', function () {
+  const balance = receipts.calculateBalance(100, [], 'shipment-1');
+  assert.throws(function () { receipts.previewBalance(balance, 0); }, /valid received amount/);
+  assert.throws(function () { receipts.previewBalance(balance, 10001); }, /exceeds the remaining balance/);
+});
+
 test('receipts do not reduce A/TO-PAY or F/TO-PAY balances', function () {
   const record = {
     id: 'to-pay-shipment', toPayStatus: 'A/TO-PAY', freight: '5,000',

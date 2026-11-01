@@ -47,6 +47,25 @@
     equal(balance.remainingPaise, 0);
     equal(balance.receivedPaise, 1000000);
   });
+  check('received amount preview updates totals without mutating saved balance', function () {
+    const balance = window.BrokerReceipts.calculateBalance(231000, [
+      { id: 'existing', shipmentId: 'shipment-1', receivedAmount: 10000 }
+    ], 'shipment-1');
+    const preview = window.BrokerReceipts.previewBalance(balance, 2500000);
+    equal(preview.receivedPaise, 3500000);
+    equal(preview.remainingPaise, 19600000);
+    equal(preview.status, 'PARTIAL');
+    equal(balance.receivedPaise, 1000000);
+    equal(balance.remainingPaise, 22100000);
+  });
+  check('received amount preview detects full payment and rejects over-balance amounts', function () {
+    const balance = window.BrokerReceipts.calculateBalance(100, [], 'shipment-1');
+    equal(window.BrokerReceipts.previewBalance(balance, 10000).status, 'PAID');
+    let rejected = false;
+    try { window.BrokerReceipts.previewBalance(balance, 10001); }
+    catch (error) { rejected = true; }
+    equal(rejected, true);
+  });
   check('status case and whitespace normalize to canonical values', function () {
     equal(c.normalizeStatus(' a / to-pay '), 'A/TO-PAY');
     equal(c.calculateShipment(Object.assign({}, fixture[2], { toPayStatus: ' a / to-pay ' })).codToPay, 40000);

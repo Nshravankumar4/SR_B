@@ -4,12 +4,12 @@
 
 - `index.html` and `css/styles.css` provide the responsive user interface, following the general navy sidebar, cards, and spreadsheet styling of the SR_T reference.
 - `js/calculations.js` is the browser's shared safe amount parser, shipment calculation engine, and summary function.
-- `js/receipts.js` calculates per-shipment TOBILLED receipts and the remaining collectible balance without changing shipment formulas.
+- `js/receipts.js` calculates per-shipment TOBILLED receipts, live entry previews, and the remaining collectible balance without changing shipment formulas.
 - `js/validation.js` performs client-side input validation before requests are sent.
 - `js/api.js` is the only browser-to-backend request layer. It sends `text/plain` JSON POST requests to the configured Apps Script URL.
 - `js/app.js` handles navigation, forms, search/status filters, spreadsheet rendering, import, and export. It uses shared calculation modules rather than defining its own formulas.
 - `backend/Code.gs` handles authentication, validation, calculations, shipment CRUD, receipt ledger writes, locking, audit entries, and backups.
-- The shipment form shows receipt totals and a derived payment status separately from the optional POD Balance Amount / Status note; calculated zeroes are not written into the user-entered field. Receipt management remains available on fully settled shipments so Admins can inspect or reverse a mistaken payment.
+- The shipment form previews Received, Remaining, and Status as a receipt amount is typed; a preview is not persisted until submitted. Legacy POD Amount Status data is retained but hidden from UI tables and exports. Receipt management remains available on fully settled shipments so signed-in users can inspect or reverse a mistaken payment.
 - The dashboard's Done/Pending cards filter the Live Excel Sheet, while pending table actions can target one shipment. Ledger and sheet receipt columns show cumulative net received plus the latest non-reversed payment date and mode.
 - The backend's `Shipments` sheet stores stable record IDs and JSON rows; `Receipts` stores received-payment entries; `Audit` records write actions. Script Properties hold the spreadsheet ID, account configuration, temporary login counters, sessions, and data version. Any pre-existing `Recoveries` sheet is left untouched and is not used by the app.
 
