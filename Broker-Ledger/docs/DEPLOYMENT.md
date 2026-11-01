@@ -6,11 +6,11 @@ Run Python's static server from the repository root (`D:\Repo\SR_B`) and open `h
 
 ## Current production deployment
 
-The configured frontend points to the following Apps Script Web App deployment (updated November 1, 2026):
+The configured frontend points to the following Apps Script Web App deployment (updated November 1, 2026, 20:11):
 
 | Version | Deployment ID | Web App URL |
 |---|---|---|
-| 5 | `AKfycbzAA-E7XNuQiVeUWAENpUfyWphI5zOiTQsaYzbBO7kgu-xivQdr-jxDHnq12snYkHdG0w` | [Apps Script Web App](https://script.google.com/macros/s/AKfycbzAA-E7XNuQiVeUWAENpUfyWphI5zOiTQsaYzbBO7kgu-xivQdr-jxDHnq12snYkHdG0w/exec) |
+| 6 | `AKfycby1IyooUMB67tj9eLtgQSP1QtMKVUZ7FcNMcBLrAgKAl6LefwLDt6Wm5mdPxM9SPLwuMQ` | [Apps Script Web App](https://script.google.com/macros/s/AKfycby1IyooUMB67tj9eLtgQSP1QtMKVUZ7FcNMcBLrAgKAl6LefwLDt6Wm5mdPxM9SPLwuMQ/exec) |
 
 This deployment ID is configuration, not a credential. Do not publish user passwords or Script Properties.
 
