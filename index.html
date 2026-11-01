@@ -6,16 +6,16 @@
   <meta name="theme-color" content="#0f172a">
   <meta name="description" content="SR Brokerage Ledger shipment and financial tracking application">
   <title>SR Brokerage Ledger</title>
-  <link rel="stylesheet" href="Broker-Ledger/css/styles.css">
+  <link rel="stylesheet" href="Broker-Ledger/css/styles.css?v=20261101-5">
   <script src="Broker-Ledger/libs/exceljs.min.js"></script>
   <script src="Broker-Ledger/libs/FileSaver.min.js"></script>
   <script src="Broker-Ledger/libs/xlsx.full.min.js"></script>
   <script defer src="Broker-Ledger/js/config.js"></script>
   <script defer src="Broker-Ledger/js/calculations.js"></script>
-  <script defer src="Broker-Ledger/js/receipts.js"></script>
+  <script defer src="Broker-Ledger/js/receipts.js?v=20261101-5"></script>
   <script defer src="Broker-Ledger/js/validation.js"></script>
   <script defer src="Broker-Ledger/js/api.js"></script>
-  <script defer src="Broker-Ledger/js/app.js"></script>
+  <script defer src="Broker-Ledger/js/app.js?v=20261101-6"></script>
 </head>
 <body>
   <noscript><p class="noscript">Broker Ledger requires JavaScript to run.</p></noscript>
@@ -314,10 +314,10 @@
                 <span class="field-label">Balance Date</span>
                 <input name="balanceDate" type="date">
               </label>
-              <label class="form-field">
-                <span class="field-label">POD Balance Amount / Status</span>
-                <input name="podAmountStatus" maxlength="100" placeholder="Status or note">
-              </label>
+              <input type="hidden" name="podAmountStatus">
+              <div class="form-field">
+                <span class="pod-payment-status"><small>Calculated payment status</small><strong id="pod-payment-status" aria-live="polite">Enter valid freight and payment amounts</strong></span>
+              </div>
               <label class="form-field details-grid-span">
                 <span class="field-label">Remarks</span>
                 <input name="remarks" maxlength="500" placeholder="Optional notes">
@@ -329,7 +329,6 @@
       <section class="form-section calculation-section" aria-labelledby="calculation-title">
         <div class="calculation-header-row">
           <h3 id="calculation-title" class="form-section-title"><span>📊 Live Calculation Summary</span></h3>
-          <button id="btn-fill-pending" class="btn btn-sm btn-fill-pending" type="button" title="Copy calculated Pending Amount to POD Balance Amount">⚡ Fill Pending Amount</button>
         </div>
         <div class="calculation-results">
           <label class="calculation-result calculation-result-billed">
@@ -343,7 +342,8 @@
         </div>
         <div class="receipt-summary-row">
           <div id="receipt-balance-summary" class="receipt-balance-cards" hidden></div>
-          <button id="btn-record-receipt" class="btn btn-secondary btn-sm" type="button" hidden>＋ Record Payment Received</button>
+          <button id="btn-record-receipt" class="btn btn-secondary btn-sm" type="button" hidden>＋ Record / Manage Payments</button>
+          <small id="receipt-management-hint" class="receipt-management-hint" hidden>Payments use saved shipment amounts. Save your shipment edits first if you changed its payment amounts.</small>
         </div>
         <div class="calculation-hint">Pending Amount: Tobilled follows the workbook formula. TOBILLED payments received reduce the final Pending Amount; COD / To-Pay text notes are preserved.</div>
       </section>
@@ -363,10 +363,10 @@
       </header>
       <p id="receipt-shipment-meta" class="toolbar-help"></p>
       <div id="receipt-error" class="notice notice-error" role="alert" hidden></div>
-      <div id="receipt-balance" class="calculation-hint"></div>
+      <div id="receipt-balance" class="receipt-balance-cards"></div>
+      <p id="receipt-entry-help" class="notice notice-info" role="status"></p>
       <section id="receipt-entry-section" class="form-section" aria-labelledby="receipt-entry-title">
         <h3 id="receipt-entry-title" class="form-section-title">Payment details</h3>
-        <p id="receipt-entry-help" class="toolbar-help"></p>
         <div class="form-grid">
           <label class="form-field">
             <span class="field-label">Amount received (₹) <span class="required">*</span></span>
@@ -379,6 +379,7 @@
           <label class="form-field">
             <span class="field-label">Payment mode <span class="required">*</span></span>
             <select name="paymentMode" required>
+              <option value="" selected disabled>Choose payment mode</option>
               <option value="Bank Transfer">Bank Transfer</option>
               <option value="Cash">Cash</option>
               <option value="UPI">UPI</option>

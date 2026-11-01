@@ -26,9 +26,28 @@ $t15 = $html.Contains("clear-payment-details") -and `
        $appJs.Contains("clearAdvancePayments") -and `
        $appJs.Contains("clearBankPodDetails") -and `
        !($html.Contains("field-clear-btn"))
-$t16 = $html.Contains("btn-fill-pending") -and $appJs.Contains("btn-fill-pending")
+$t16 = $html.Contains('<input type="hidden" name="podAmountStatus">') -and `
+       !$html.Contains('id="btn-fill-pending"') -and `
+       !$html.Contains("POD Balance Amount / Status")
 $t17 = $html.Contains("clear-all-dialog") -and $appJs.Contains("clear-all-dialog")
 $t18 = $appJs.Contains("Add & Submit Shipment") -and $appJs.Contains("Update Shipment")
+$t19 = $html.Contains('id="pod-payment-status"') -and `
+       $html.Contains("Calculated payment status") -and `
+       $appJs.Contains("function paymentStatusText") -and `
+       $appJs.Contains("summary.innerHTML = receiptBalanceMarkup(totals, false)")
+$t20 = $html.Contains("Record / Manage Payments") -and `
+       $appJs.Contains("button.disabled = state.preview") -and `
+       $appJs.Contains("No positive balance is available to receive") -and `
+       $appJs.Contains("receipt-entry-section').hidden = !canRecord")
+$t21 = $appJs.Contains("Latest Received Date") -and `
+       $appJs.Contains("Payment Mode</th>") -and `
+       $appJs.Contains("function receiptTableCells") -and `
+       $appJs.Contains("category: 'payment_done'") -and `
+       $appJs.Contains("RECEIPTS.paymentStatus(balance.remainingPaise)")
+$t22 = $appJs.Contains("const isAdmin = Boolean(state.user && state.user.role === 'Admin');") -and `
+       $appJs.Contains("(isAdmin ? '<th>Delete</th>' : '')") -and `
+       $appJs.Contains("const adminTools = state.user ?") -and `
+       $appJs.Contains("!wasReversed && state.user")
 
 $results = @(
   @{ Name = "1. Form: 1st Advance Given Date separate input"; Ok = $t1 },
@@ -46,9 +65,13 @@ $results = @(
   @{ Name = "13. CSS: user-switch-card active has distinct border and background"; Ok = $t13 },
   @{ Name = "14. UI: Advance payments grouped into compact consistent rows"; Ok = $t14 },
   @{ Name = "15. UI: All 4 section clear buttons present and individual clear buttons removed"; Ok = $t15 },
-  @{ Name = "16. UI: Fill Pending Amount button in live calculation summary"; Ok = $t16 },
+  @{ Name = "16. UI: POD Amount Status input removed while existing data remains preserved"; Ok = $t16 },
   @{ Name = "17. UI: Clear All button with confirmation"; Ok = $t17 },
-  @{ Name = "18. UI: Dynamic Add & Submit / Update Shipment button labels"; Ok = $t18 }
+  @{ Name = "18. UI: Dynamic Add & Submit / Update Shipment button labels"; Ok = $t18 },
+  @{ Name = "19. UI: Separate derived payment status and non-duplicated receipt summary"; Ok = $t19 },
+  @{ Name = "20. UI: Received-payment management works in View/Edit and hides unavailable entry inputs"; Ok = $t20 },
+  @{ Name = "21. UI: Dashboard Done filter and sheet payment mode/date/amount/status columns"; Ok = $t21 },
+  @{ Name = "22. Permissions: Rudra has other actions but not the shipment Delete column"; Ok = $t22 }
 )
 
 $passed = 0
@@ -64,4 +87,3 @@ foreach ($r in $results) {
 }
 Write-Host "`nTargeted Suite: $passed Passed, $failed Failed"
 if ($failed -gt 0) { exit 1 }
-

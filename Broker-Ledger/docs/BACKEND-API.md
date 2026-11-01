@@ -15,12 +15,14 @@ Except `login`, actions require the server-issued `token`:
 | `deleteShipment` | Admin | `id` | Deletes one record |
 | `importShipments` | Signed in | `records[]` | Atomic import after validation and duplicate checks |
 | `createReceipt` | Signed in | `receipt` (`shipmentId`, `idempotencyKey`, `receivedAmount`, `receivedDate`, `paymentMode`, optional `transactionReference`) | Appends a validated TOBILLED payment received record; prevents duplicate requests and over-receipts |
-| `reverseReceipt` | Admin | `receiptId`, `idempotencyKey` | Appends one audited full reversal for a receipt; original receipt remains in history |
-| `createBackup` | Admin | — | Dated copy of the backend spreadsheet in Google Drive |
+| `reverseReceipt` | Signed in | `receiptId`, `idempotencyKey` | Appends one audited full reversal for a receipt; original receipt remains in history |
+| `createBackup` | Signed in | — | Dated copy of the backend spreadsheet in Google Drive |
 
 Every write is serialized with `LockService.getScriptLock()`. An import validates the complete batch and checks duplicate identities before appending any rows.
 
 Received payments and reversals are stored in the separate `Receipts` tab. Undoing a receipt appends a reversal rather than deleting history or overwriting shipment source data/formula-derived pending values. Existing `Recoveries` sheets are not used or changed.
+
+Shipment validation recalculates `codToPay`, `pendingTobilled`, and `pendingAmount`, but preserves the submitted `podAmountStatus` value as optional user data. It does not write the calculation's numeric POD status (`0`) into a blank field.
 
 The browser polls `ping` every 8 seconds while a signed-in tab is visible and requests `getAll` only when the version changes. `ping` checks the authenticated session and script-property data version without waiting for the global spreadsheet lock or opening the spreadsheet; data writes and full reads remain serialized. `updateShipment` requires the record's `updatedAt` value from the edit form; the Apps Script lock protects the version check and write as one operation.
 

@@ -28,6 +28,12 @@
     };
   }
 
+  function paymentStatus(remainingPaise) {
+    if (remainingPaise === 0) return 'Done';
+    if (remainingPaise > 0) return 'Pending';
+    return 'Credit balance';
+  }
+
   function summarize(records, receipts) {
     const summary = root.BrokerCalculations.summarize(records);
     (records || []).forEach(function (record) {
@@ -40,7 +46,11 @@
     return summary;
   }
 
-  const api = Object.freeze({ calculateBalance: calculateBalance, summarize: summarize });
+  const api = Object.freeze({
+    calculateBalance: calculateBalance,
+    paymentStatus: paymentStatus,
+    summarize: summarize
+  });
   root.BrokerReceipts = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

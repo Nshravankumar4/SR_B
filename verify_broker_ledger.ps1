@@ -148,10 +148,13 @@ $calcJs = Get-Content -Raw "Broker-Ledger\js\calculations.js"
 $valJs = Get-Content -Raw "Broker-Ledger\js\validation.js"
 $appJs = Get-Content -Raw "Broker-Ledger\js\app.js"
 $codeGs = Get-Content -Raw "Broker-Ledger\backend\Code.gs"
-Assert-Test "21. POD Amount Status strictly evaluates to numeric zero, never substituting text DONE" `
+Assert-Test "21. POD balance/status stays user-entered; calculated status is separate and blank fields are not auto-filled with 0" `
     ($calcJs -match 'podAmountStatus = fromPaise\(' -and `
      $calcJs -match 'podAmountStatus: podAmountStatus' -and `
      $codeGs -match 'podAmountStatus:\s*0' -and `
+     !($codeGs -match 'record\.podAmountStatus\s*=') -and `
+     $appJs -match 'pod-payment-status' -and `
+     !($appJs -match 'podAmountStatus\s*=\s*computed\.podAmountStatus') -and `
      !($appJs -match "podStatusInput\.value = 'DONE'"))
 
 Assert-Test "22. toDateInput parses slash dates and pads single-digit values" `

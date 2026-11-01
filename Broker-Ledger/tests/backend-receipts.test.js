@@ -132,13 +132,66 @@ test('receipt reversal retry is idempotent and a second reversal is rejected', f
   }, /already been reversed/);
 });
 
-test('only an administrator can reverse a received payment', function () {
+test('an employee can reverse a received payment', function () {
   const backend = createBackend([originalReceipt()]);
+  const result = backend.context.brokerReverseReceipt_(
+    backend.spreadsheet, { role: 'Employee', username: 'Rudra' },
+    '00000000-0000-4000-8000-000000000001',
+    '00000000-0000-4000-8000-000000000003'
+  );
+  assert.equal(result.receipt.type, 'REVERSAL');
+  assert.equal(result.receipt.createdBy, 'Rudra');
+});
+
+test('an employee can create a cloud backup', function () {
+  const backend = createBackend([]);
+  backend.context.brokerSession_ = function (token) {
+    return token === 'rudra-session' ? { role: 'Employee', username: 'Rudra' } : null;
+  };
+  backend.context.brokerGetSpreadsheet_ = function () {
+    return { getSheetByName: function () { return {}; }, getId: function () { return 'ledger-id'; } };
+  };
+  backend.context.DriveApp = {
+    getFileById: function (id) {
+      assert.equal(id, 'ledger-id');
+      return { makeCopy: function (name) { return { getId: function () { return name; } }; } };
+    }
+  };
+
+  const result = backend.context.brokerHandle_({ action: 'createBackup', token: 'rudra-session' });
+  assert.equal(result.success, true);
+  assert.match(result.name, /^Broker Ledger Backup /);
+});
+
+test('an employee cannot delete a shipment', function () {
+  const backend = createBackend([]);
+  backend.context.brokerSession_ = function (token) {
+    return token === 'rudra-session' ? { role: 'Employee', username: 'Rudra' } : null;
+  };
+  backend.context.brokerGetSpreadsheet_ = function () {
+    return { getSheetByName: function () { return {}; } };
+  };
+
   assert.throws(function () {
-    backend.context.brokerReverseReceipt_(
-      backend.spreadsheet, { role: 'Rudra', username: 'Rudra' },
-      '00000000-0000-4000-8000-000000000001',
-      '00000000-0000-4000-8000-000000000003'
-    );
-  }, /Only an administrator/);
+    backend.context.brokerHandle_({ action: 'deleteShipment', token: 'rudra-session' });
+  }, /Only an administrator can delete shipments/);
+});
+
+test('shipment validation preserves a blank or user-entered POD amount/status', function () {
+  const backend = createBackend([]);
+  const source = {
+    transportName: 'Test Transport',
+    date: '2026-11-01',
+    lrNo: 'LR-1',
+    truckNo: 'TRUCK-1',
+    from: 'Origin',
+    to: 'Destination',
+    freight: '10,000',
+    toPayStatus: 'TOBILLED',
+    codToPay: 'if Tobilled NA',
+    podAmountStatus: ''
+  };
+  assert.equal(backend.context.brokerValidateAndCalculate_(source).podAmountStatus, '');
+  source.podAmountStatus = 'POD received';
+  assert.equal(backend.context.brokerValidateAndCalculate_(source).podAmountStatus, 'POD received');
 });

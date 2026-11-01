@@ -22,6 +22,7 @@ Write-Host "  SR BROKERAGE LEDGER - SHIPMENT CONTROL CENTRE TESTS" -ForegroundCo
 Write-Host "========================================================`n" -ForegroundColor Cyan
 
 $appJs = Get-Content -Raw "Broker-Ledger\js\app.js"
+$receiptsJs = Get-Content -Raw "Broker-Ledger\js\receipts.js"
 $stylesCss = Get-Content -Raw "Broker-Ledger\css\styles.css"
 
 # 1. Dashboard Status Cards
@@ -36,7 +37,7 @@ Assert-Check "3. Status cards link to Live Excel Sheet with dynamic filter-value
 
 # 2. Payment and Issue Overview (Action Cards)
 Assert-Check "4. Dashboard action cards array contains pending, overdue, pod_missing, and open_issues" `
-    ($appJs -match "category:\s*'pending'" -and $appJs -match "category:\s*'overdue'" -and $appJs -match "category:\s*'pod_missing'" -and $appJs -match "category:\s*'open_issues'")
+    ($appJs -match "category:\s*'pending'" -and $appJs -match "category:\s*'payment_done'" -and $appJs -match "category:\s*'overdue'" -and $appJs -match "category:\s*'pod_missing'" -and $appJs -match "category:\s*'open_issues'")
 
 Assert-Check "5. Action card elements use sheet-filter action with category filter-type" `
     ($appJs -match 'data-action="sheet-filter"' -and $appJs -match 'data-filter-type="category"')
@@ -60,40 +61,51 @@ Assert-Check "8. Transporter Balance table has all 7 required columns" `
 Assert-Check "9. Transporter name in table is clickable to filter sheet by transporter" `
     ($appJs -match 'table-transporter-btn[^>]*data-action="sheet-filter"[^>]*data-filter-type="transporter"')
 
+Assert-Check "10. Pending payment row opens that exact shipment in the Live Excel Sheet" `
+    ($appJs -match 'data-filter-type="shipment"' -and `
+     $appJs -match "filter\.type === 'shipment'" -and `
+     $appJs -match "record\.id === filter\.value")
+
 # 4. Filter and Date Parsing Logic
-Assert-Check "10. app.js contains getShipmentDaysPending and parseRecordDate functions" `
+Assert-Check "11. app.js contains getShipmentDaysPending and parseRecordDate functions" `
     ($appJs -match 'function getShipmentDaysPending\(' -and $appJs -match 'function parseRecordDate\(')
 
-Assert-Check "11. app.js contains isShipmentOverdue function with 15-day threshold" `
+Assert-Check "12. app.js contains isShipmentOverdue function with 15-day threshold" `
     ($appJs -match 'function isShipmentOverdue\(' -and $appJs -match 'days > 15')
 
-Assert-Check "12. app.js contains isShipmentPodMissing and isShipmentOpenIssue functions" `
+Assert-Check "13. app.js contains isShipmentPodMissing and isShipmentOpenIssue functions" `
     ($appJs -match 'function isShipmentPodMissing\(' -and $appJs -match 'function isShipmentOpenIssue\(')
 
 # 5. Live Excel Sheet Synchronization
-Assert-Check "13. app.js contains getFilteredSheetRecords function for sheet filtering" `
+Assert-Check "14. app.js contains getFilteredSheetRecords function for sheet filtering" `
     ($appJs -match 'function getFilteredSheetRecords\(')
 
-Assert-Check "14. renderSheet displays sheet-filter-banner when filter is active" `
+Assert-Check "15. renderSheet displays sheet-filter-banner when filter is active" `
     ($appJs -match 'sheet-filter-banner' -and $appJs -match 'clear-sheet-filter')
 
-Assert-Check "15. Click listener handles sheet-filter action and sets state.view to sheet" `
+Assert-Check "16. Click listener handles sheet-filter action and sets state.view to sheet" `
     ($appJs -match "action === 'sheet-filter'" -and $appJs -match "state\.view = 'sheet'")
 
-Assert-Check "16. Click listener handles clear-sheet-filter action" `
+Assert-Check "17. Click listener handles clear-sheet-filter action" `
     ($appJs -match "action === 'clear-sheet-filter'")
 
+Assert-Check "18. Done means zero remaining and filters into the Live Excel Sheet" `
+    ($receiptsJs -match "function paymentStatus\(remainingPaise\)" -and `
+     $receiptsJs -match "if \(remainingPaise === 0\) return 'Done'" -and `
+     $appJs -match "filter\.value === 'payment_done'" -and `
+     $appJs -match "balance\.remainingPaise === 0")
+
 # 6. CSS Styling & Layout
-Assert-Check "17. styles.css includes status-control-grid and control-status-card" `
+Assert-Check "19. styles.css includes status-control-grid and control-status-card" `
     ($stylesCss -match '\.status-control-grid' -and $stylesCss -match '\.control-status-card')
 
-Assert-Check "18. styles.css includes action-cards-grid and control-action-card" `
+Assert-Check "20. styles.css includes action-cards-grid and control-action-card" `
     ($stylesCss -match '\.action-cards-grid' -and $stylesCss -match '\.control-action-card')
 
-Assert-Check "19. styles.css includes sheet-filter-banner and sheet-clear-filter-btn" `
+Assert-Check "21. styles.css includes sheet-filter-banner and sheet-clear-filter-btn" `
     ($stylesCss -match '\.sheet-filter-banner' -and $stylesCss -match '\.sheet-clear-filter-btn')
 
-Assert-Check "20. styles.css includes responsive breakpoints for 900px and 640px" `
+Assert-Check "22. styles.css includes responsive breakpoints for 900px and 640px" `
     ($stylesCss -match '@media \(max-width:\s*900px\)' -and $stylesCss -match '@media \(max-width:\s*640px\)')
 
 Write-Host "`n========================================================" -ForegroundColor Cyan

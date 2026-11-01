@@ -9,6 +9,8 @@
 - `js/api.js` is the only browser-to-backend request layer. It sends `text/plain` JSON POST requests to the configured Apps Script URL.
 - `js/app.js` handles navigation, forms, search/status filters, spreadsheet rendering, import, and export. It uses shared calculation modules rather than defining its own formulas.
 - `backend/Code.gs` handles authentication, validation, calculations, shipment CRUD, receipt ledger writes, locking, audit entries, and backups.
+- The shipment form shows receipt totals and a derived payment status separately from the optional POD Balance Amount / Status note; calculated zeroes are not written into the user-entered field. Receipt management remains available on fully settled shipments so Admins can inspect or reverse a mistaken payment.
+- The dashboard's Done/Pending cards filter the Live Excel Sheet, while pending table actions can target one shipment. Ledger and sheet receipt columns show cumulative net received plus the latest non-reversed payment date and mode.
 - The backend's `Shipments` sheet stores stable record IDs and JSON rows; `Receipts` stores received-payment entries; `Audit` records write actions. Script Properties hold the spreadsheet ID, account configuration, temporary login counters, sessions, and data version. Any pre-existing `Recoveries` sheet is left untouched and is not used by the app.
 
 ## Data flow

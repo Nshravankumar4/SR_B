@@ -245,7 +245,6 @@ function brokerHandle_(request) {
     return { success: true, imported: imported.count, warning: imported.warning, version: brokerVersion_() };
   }
   if (action === 'createBackup') {
-    if (session.role !== 'Admin') throw new Error('Only an administrator can create backups.');
     var driveFile = DriveApp.getFileById(spreadsheet.getId());
     var backupName = 'Broker Ledger Backup ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HHmmss');
     var copy = driveFile.makeCopy(backupName);
@@ -373,9 +372,6 @@ function brokerValidateAndCalculate_(source) {
   record.codToPay = calc.codToPay;
   record.pendingTobilled = calc.pendingTobilled;
   record.pendingAmount = calc.pendingAmount;
-  if (!record.podAmountStatus || String(record.podAmountStatus).trim() === '') {
-    record.podAmountStatus = String(calc.podAmountStatus !== undefined ? calc.podAmountStatus : '0');
-  }
   return record;
 }
 
@@ -642,7 +638,6 @@ function brokerCreateReceipt_(spreadsheet, session, source) {
 }
 
 function brokerReverseReceipt_(spreadsheet, session, receiptId, idempotencyKey) {
-  if (session.role !== 'Admin') throw new Error('Only an administrator can reverse a received payment.');
   var targetId = String(receiptId || '').trim();
   var requestKey = String(idempotencyKey || '').trim();
   if (!targetId) throw new Error('Choose a received payment to reverse.');

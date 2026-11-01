@@ -223,12 +223,23 @@ button:active:not(:disabled), .btn:active:not(:disabled), .nav-tab:active, .user
 .calculation-hint { color: var(--muted); background: #f8fafc; border-left: 3px solid var(--accent); padding: .55rem .7rem; font-size: .76rem; margin-top: .8rem; }
 .receipt-summary-row { display: flex; align-items: stretch; justify-content: space-between; gap: .75rem; flex-wrap: wrap; margin-top: .8rem; }
 .receipt-balance-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .65rem; flex: 1 1 25rem; }
+.receipt-balance-cards.compact { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .receipt-balance-card { display: grid; gap: .25rem; min-width: 0; padding: .7rem .8rem; border: 1px solid #bfdbfe; border-radius: 9px; background: #eff6ff; }
 .receipt-balance-card small { color: #475569; font-size: .72rem; font-weight: 700; }
 .receipt-balance-card strong { color: #1e3a8a; font-size: .98rem; font-variant-numeric: tabular-nums; }
 .receipt-balance-card.remaining { border-color: #bbf7d0; background: #f0fdf4; }
 .receipt-balance-card.remaining strong { color: #166534; }
 .receipt-summary-row .btn { flex: 0 0 auto; }
+.receipt-management-hint { flex: 1 1 100%; color: var(--muted); font-size: .75rem; }
+.payment-status-badge { display: inline-flex; align-items: center; padding: .2rem .55rem; border-radius: 999px; font-size: .75rem; font-weight: 750; white-space: nowrap; }
+.payment-status-badge.done { color: #166534; background: #dcfce7; }
+.payment-status-badge.pending { color: #9a3412; background: #ffedd5; }
+.payment-status-badge.credit { color: #6b21a8; background: #f3e8ff; }
+.pod-payment-status { display: grid; gap: .2rem; padding: .55rem .65rem; border: 1px solid #bfdbfe; border-radius: 8px; background: #eff6ff; }
+.pod-payment-status small { color: #475569; font-size: .72rem; font-weight: 700; }
+.pod-payment-status strong { color: #1e3a8a; font-size: .82rem; }
+.details-grid .field-help { color: var(--muted); font-size: .72rem; line-height: 1.4; }
+#receipt-balance { margin: .5rem 1rem 1rem; }
 .modal {
   width: min(940px, calc(100vw - 1.5rem));
   max-height: min(92vh, 900px);

@@ -46,10 +46,15 @@ test('an audited reversal restores the original receipt amount without deleting 
 });
 
 test('receipt balance preserves zero and negative calculated outcomes', function () {
-  assert.equal(receipts.calculateBalance(0, [], 'shipment-1').remainingPaise, 0);
-  assert.equal(receipts.calculateBalance(100, [
+  const zeroBalance = receipts.calculateBalance(0, [], 'shipment-1');
+  const negativeBalance = receipts.calculateBalance(100, [
     { shipmentId: 'shipment-1', receivedAmount: 125 }
-  ], 'shipment-1').remainingPaise, -2500);
+  ], 'shipment-1');
+  assert.equal(zeroBalance.remainingPaise, 0);
+  assert.equal(negativeBalance.remainingPaise, -2500);
+  assert.equal(receipts.paymentStatus(zeroBalance.remainingPaise), 'Done');
+  assert.equal(receipts.paymentStatus(1), 'Pending');
+  assert.equal(receipts.paymentStatus(negativeBalance.remainingPaise), 'Credit balance');
 });
 
 test('invalid receipt amounts are reported instead of treated as zero', function () {

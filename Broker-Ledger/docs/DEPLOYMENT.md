@@ -33,7 +33,9 @@ The Web App may need to be reachable by both users for Google Apps Script's Web 
 - To update backend code, save the Apps Script project, create a **new version**, and update the deployment. The spreadsheet ID and records remain stored in Script Properties and the existing spreadsheet.
 - After replacing `Code.gs`, run `setupBrokerLedger()` once against the existing Script Properties and confirm the `Shipments` data remains before updating the Web App deployment.
 - Deploy the frontend and backend changes together so the live app uses the same calculation and API behavior.
-- The app's administrator backup operation creates a dated copy of the Google spreadsheet in the deployment owner's Drive. Verify that Drive permissions and retention meet your needs.
+- Publish the latest `index.html` and `Broker-Ledger/` assets for dashboard Done/Pending filters and the ledger/sheet receipt columns. Receipt entries continue to use the existing `Receipts` backend tab.
+- For receipt reversal and blank POD Amount / Status handling, copy the current `backend/Code.gs` into the existing Apps Script project, save, run `setupBrokerLedger()` if the project setup/schema needs verification, and deploy a new Web App version. Then publish the updated repository-root `index.html` and `Broker-Ledger/` assets; the existing deployment URL should remain the configured backend URL.
+- Any signed-in user can create a dated copy of the Google spreadsheet in the deployment owner's Drive. Verify that Drive permissions and retention meet your needs.
 - To restore, use Google Drive/Sheets to recover a backup. This project intentionally does not expose an unauthenticated restore endpoint.
 
 ## GitHub Pages

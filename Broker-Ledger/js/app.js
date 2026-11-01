@@ -175,36 +175,72 @@
     }
     return RECEIPTS.calculateBalance(calculation.pendingAmount, state.receipts, record.id);
   }
+  function receiptDisplayDetails(record) {
+    const balance = receiptTotals(record);
+    const entries = state.receipts.filter(function (receipt) {
+      return receipt && receipt.shipmentId === record.id;
+    });
+    const reversedIds = new Set(entries.filter(function (receipt) {
+      return receipt.type === 'REVERSAL';
+    }).map(function (receipt) { return receipt.reversalOf; }));
+    const activeReceipts = entries.filter(function (receipt) {
+      return receipt.type !== 'REVERSAL' && !reversedIds.has(receipt.id);
+    }).sort(function (left, right) {
+      return String(left.createdAt || left.receivedDate || '').localeCompare(
+        String(right.createdAt || right.receivedDate || '')
+      );
+    });
+    const latest = activeReceipts.length ? activeReceipts[activeReceipts.length - 1] : null;
+    return {
+      receivedPaise: balance ? balance.receivedPaise : 0,
+      receivedDate: latest ? formatDate(latest.receivedDate) : '',
+      paymentMode: latest ? String(latest.paymentMode || '') : '',
+      paymentStatus: balance ? RECEIPTS.paymentStatus(balance.remainingPaise) : ''
+    };
+  }
   function receiptSummaryText(record) {
     const totals = receiptTotals(record);
     if (!totals) return 'Pending Amount is not available until the shipment source amounts are valid.';
-    return 'Original pending: ' + formatMoneyPaise(totals.originalPaise) +
-      ' · Received: ' + formatMoneyPaise(totals.receivedPaise) +
+    return 'Received: ' + formatMoneyPaise(totals.receivedPaise) +
       ' · Remaining: ' + formatMoneyPaise(totals.remainingPaise);
+  }
+  function paymentStatusText(pendingPaise, receivedPaise) {
+    if (pendingPaise === null || pendingPaise === undefined) return 'Enter valid freight and payment amounts';
+    const remainingPaise = pendingPaise - (receivedPaise || 0);
+    return RECEIPTS.paymentStatus(remainingPaise);
+  }
+  function receiptBalanceMarkup(totals, includeRemaining) {
+    let markup = '<span class="receipt-balance-card"><small>Received</small><strong>' +
+      escapeHtml(formatMoneyPaise(totals.receivedPaise)) + '</strong></span>';
+    if (includeRemaining !== false) {
+      markup += '<span class="receipt-balance-card remaining"><small>Remaining</small><strong>' +
+        escapeHtml(formatMoneyPaise(totals.remainingPaise)) + '</strong></span>';
+    }
+    return markup + '<span class="receipt-balance-card"><small>Status</small><strong>' +
+      escapeHtml(paymentStatusText(totals.originalPaise, totals.receivedPaise)) + '</strong></span>';
   }
   function renderReceiptSummary(record) {
     const summary = byId('receipt-balance-summary');
     const button = byId('btn-record-receipt');
+    const hint = byId('receipt-management-hint');
     if (!summary || !button) return;
+    summary.classList.add('compact');
     const eligible = Boolean(record && record.id &&
       CALC.normalizeStatus(record.toPayStatus) === 'TOBILLED');
     summary.hidden = !eligible;
     button.hidden = !eligible;
+    if (hint) hint.hidden = !eligible || state.formMode !== 'edit';
     if (!eligible) return;
     const totals = receiptTotals(record);
     if (!totals) {
       summary.textContent = receiptSummaryText(record);
     } else {
-      summary.innerHTML =
-        '<span class="receipt-balance-card"><small>Original pending</small><strong>' +
-        escapeHtml(formatMoneyPaise(totals.originalPaise)) + '</strong></span>' +
-        '<span class="receipt-balance-card"><small>Received</small><strong>' +
-        escapeHtml(formatMoneyPaise(totals.receivedPaise)) + '</strong></span>' +
-        '<span class="receipt-balance-card remaining"><small>Remaining</small><strong>' +
-        escapeHtml(formatMoneyPaise(totals.remainingPaise)) + '</strong></span>';
+      summary.innerHTML = receiptBalanceMarkup(totals, false);
     }
-    button.disabled = !totals || totals.remainingPaise <= 0 || state.preview || state.formMode !== 'view';
-    button.title = button.disabled ? 'No positive TOBILLED balance is available to receive.' : '';
+    button.disabled = state.preview;
+    button.title = state.formMode === 'edit'
+      ? 'Payments use the saved shipment amounts. Save your shipment edits first if you changed its payment amounts.'
+      : '';
   }
   function fieldValue(record, key) {
     if (DATE_FIELDS.has(key)) return formatDate(record[key]);
@@ -219,6 +255,7 @@
       const parsed = CALC.parseMoney(record[key], { allowEmpty: true });
       return parsed.ok && !parsed.empty ? formatMoneyPaise(parsed.paise) : (record[key] || '—');
     }
+    if (key === 'podAmountStatus' && String(record[key] || '').trim() === '0') return '';
     return isBlankMarker(record[key]) ? '' : record[key];
   }
 
@@ -245,6 +282,15 @@
       return '<td class="' + cls + '">' + (value === '—' ? '—' : escapeHtml(value)) + '</td>';
     }
     return '<td>' + escapeHtml(value) + '</td>';
+  }
+  function receiptTableCells(record) {
+    const details = receiptDisplayDetails(record);
+    return '<td class="numeric">' + (details.receivedPaise ? formatMoneyPaise(details.receivedPaise) : '') +
+      '</td><td>' + escapeHtml(details.receivedDate) + '</td><td>' +
+      escapeHtml(details.paymentMode) + '</td><td>' +
+      (details.paymentStatus ? '<span class="payment-status-badge ' +
+        (details.paymentStatus === 'Done' ? 'done' : details.paymentStatus === 'Pending' ? 'pending' : 'credit') +
+        '">' + escapeHtml(details.paymentStatus) + '</span>' : '') + '</td>';
   }
   function parseRecordDate(val) {
     if (!val) return null;
@@ -343,6 +389,7 @@
     // Process Action Cards & Transporter-wise Balance Details (Section B & C)
     let pendingCount = 0;
     let pendingTotalPaise = 0;
+    let doneCount = 0;
     let overdueCount = 0;
     let overdueTotalPaise = 0;
     let podMissingCount = 0;
@@ -352,6 +399,8 @@
     (state.records || []).forEach(function (rec) {
       const parsedPending = CALC.parseMoney(settlementValue(rec, 'pendingAmount'), { allowEmpty: true });
       const hasPending = parsedPending.ok && !parsedPending.empty && parsedPending.paise > 0;
+      const currentBalance = receiptTotals(rec);
+      if (currentBalance && currentBalance.remainingPaise === 0) doneCount++;
       const days = getShipmentDaysPending(rec);
       const overdue = isShipmentOverdue(rec);
       const podMissing = isShipmentPodMissing(rec);
@@ -392,6 +441,17 @@
         amount: formatMoneyPaise(pendingTotalPaise),
         note: 'Shipments with balance payable',
         filterLabel: 'Pending Balance Shipments'
+      },
+      {
+        category: 'payment_done',
+        title: 'Done',
+        badgeText: '✓ Settled',
+        badgeClass: 'badge-done',
+        subtitle: 'Shipments with zero pending',
+        count: doneCount,
+        amount: '₹0 remaining',
+        note: 'Pending Amount is zero',
+        filterLabel: 'Done Shipments (₹0 pending)'
       },
       {
         category: 'overdue',
@@ -466,7 +526,7 @@
         '<td style="text-align: center;">' + escapeHtml(row.pendingSince) + '</td>' +
         '<td style="text-align: center;">' + daysBadge + '</td>' +
         '<td style="text-align: center;">' + statusBadge + '</td>' +
-        '<td style="text-align: center;"><button type="button" class="btn btn-secondary btn-sm" data-action="sheet-filter" data-filter-type="transporter" data-filter-value="' + escapeHtml(row.transporter) + '" data-filter-label="Transporter: ' + escapeHtml(row.transporter) + '">View in Sheet</button></td>' +
+        '<td style="text-align: center;"><button type="button" class="btn btn-secondary btn-sm" data-action="sheet-filter" data-filter-type="shipment" data-filter-value="' + escapeHtml(row.record.id) + '" data-filter-label="Pending shipment: LR ' + escapeHtml(row.lrNo) + '">View in Sheet</button></td>' +
       '</tr>';
     }).join('') : '<tr><td colspan="8" class="empty-state">🎉 All caught up — no outstanding balance payments!</td></tr>';
 
@@ -525,6 +585,8 @@
   }
   function renderTable(records, showActions) {
     const actions = showActions !== false;
+    const isAdmin = Boolean(state.user && state.user.role === 'Admin');
+    const includeReceiptDetails = actions;
     if (!records.length) {
       if (state.loadingRecords) {
         return '<div class="empty-state" role="status"><strong>Loading shipments…</strong><p>Fetching the latest verified ledger.</p></div>';
@@ -535,10 +597,15 @@
       }
       return '<div class="empty-state"><strong>No shipments yet</strong><p>Add a shipment or import an Excel workbook to begin.</p></div>';
     }
+    const receiptHeads = includeReceiptDetails
+      ? '<th class="numeric">Received Amount</th><th>Latest Received Date</th><th>Payment Mode</th><th>Payment Status</th>'
+      : '';
     const heads = FIELD_ORDER.map(function (field) { return headerCell(field, actions); }).join('') +
-      (actions ? '<th>View</th><th>Payments</th><th>Edit</th><th>Delete</th>' : '');
+      receiptHeads +
+      (actions ? '<th>View</th><th>Payments</th><th>Edit</th>' + (isAdmin ? '<th>Delete</th>' : '') : '');
     const rows = records.map(function (record) {
       const cells = FIELD_ORDER.map(function (field) { return recordCell(record, field); }).join('');
+      const receiptDetails = includeReceiptDetails ? receiptTableCells(record) : '';
       const eligibleForReceipts = CALC.normalizeStatus(record.toPayStatus) === 'TOBILLED';
       const actionCell = actions
         ? '<td class="row-action-cell"><button class="btn btn-secondary btn-sm" type="button" data-action="view" data-id="' +
@@ -547,13 +614,12 @@
             ? '<button class="btn btn-secondary btn-sm" type="button" data-action="receipt" data-id="' +
               escapeHtml(record.id) + '">Payments</button>' : '') + '</td>' +
           '<td class="row-action-cell">' + (!state.preview
-            ? '<button class="btn btn-secondary btn-sm" type="button" data-action="edit" data-id="' +
+              ? '<button class="btn btn-secondary btn-sm" type="button" data-action="edit" data-id="' +
               escapeHtml(record.id) + '" aria-label="Edit shipment">Edit</button>' : '') + '</td>' +
-          '<td class="row-action-cell">' + (state.user && state.user.role === 'Admin'
-            ? '<button class="btn btn-danger btn-sm" type="button" data-action="delete" data-id="' +
-              escapeHtml(record.id) + '" aria-label="Delete shipment">Delete</button>' : '') + '</td>'
+          (isAdmin ? '<td class="row-action-cell"><button class="btn btn-danger btn-sm" type="button" data-action="delete" data-id="' +
+              escapeHtml(record.id) + '" aria-label="Delete shipment">Delete</button></td>' : '')
         : '';
-      return '<tr data-id="' + escapeHtml(record.id) + '">' + cells + actionCell + '</tr>';
+      return '<tr data-id="' + escapeHtml(record.id) + '">' + cells + receiptDetails + actionCell + '</tr>';
     }).join('');
     return '<div class="table-wrap" tabindex="0" aria-label="Scrollable shipment table"><table class="ledger-table"><thead><tr>' + heads +
       '</tr></thead><tbody>' + rows + '</tbody></table></div>';
@@ -591,11 +657,22 @@
         return String(r.transportName || '').trim().toLowerCase() === target;
       });
     }
+    if (filter.type === 'shipment') {
+      return records.filter(function (record) {
+        return record.id === filter.value;
+      });
+    }
     if (filter.type === 'category') {
       if (filter.value === 'pending') {
         return records.filter(function (r) {
         const parsed = CALC.parseMoney(settlementValue(r, 'pendingAmount'), { allowEmpty: true });
           return parsed.ok && !parsed.empty && parsed.paise > 0;
+        });
+      }
+      if (filter.value === 'payment_done') {
+        return records.filter(function (record) {
+          const balance = receiptTotals(record);
+          return balance && balance.remainingPaise === 0;
         });
       }
       if (filter.value === 'overdue') {
@@ -633,8 +710,8 @@
     const rows = fullRecords.length ? fullRecords.map(function (record) {
       return '<tr data-id="' + escapeHtml(record.id) + '">' + FIELD_ORDER.map(function (field) {
         return recordCell(record, field).replace('<td', '<td');
-      }).join('') + '</tr>';
-    }).join('') : '<tr><td class="empty-state" colspan="' + FIELD_ORDER.length + '">' +
+      }).join('') + receiptTableCells(record) + '</tr>';
+    }).join('') : '<tr><td class="empty-state" colspan="' + (FIELD_ORDER.length + 4) + '">' +
       (state.loadingRecords ? 'Loading the latest shipment data…' :
         (state.loadError ? escapeHtml(state.loadError) : (state.sheetFilter ? 'No shipments matching active filter: ' + escapeHtml(state.sheetFilter.label) : 'No shipments in the ledger.'))) + '</td></tr>';
     const totalsCells = FIELD_ORDER.map(function (field, idx) {
@@ -651,7 +728,7 @@
       if (field === 'pendingAmount') return '<td class="numeric">' + formatMoneyPaise(summary.pendingAmountPaise) + '</td>';
       return '<td></td>';
     }).join('');
-    const totals = '<tr>' + totalsCells + '</tr>';
+    const totals = '<tr>' + totalsCells + '<td></td><td></td><td></td><td></td></tr>';
     return '<section class="panel"><div class="toolbar"><div class="sheet-toolbar-heading"><h2>📑 Live Excel Spreadsheet View</h2>' +
       '<p class="toolbar-help">Complete shipment records, formulas, and closing calculations directly from the Broker Ledger.</p></div>' +
       '<div class="view-actions"><button class="btn btn-secondary" type="button" data-action="refresh">↻ Refresh</button><div class="zoom-controls"><label for="sheet-zoom">Zoom</label><select id="sheet-zoom"><option value="0.8">80%</option><option value="0.9">90%</option><option value="1" selected>100%</option><option value="1.15">115%</option></select></div>' +
@@ -659,7 +736,9 @@
       filterBanner +
       '<div class="table-meta"><span>' + fullRecords.length + ' rows ' + (state.sheetFilter ? '(filtered view)' : '(full ledger)') + '</span><span>Calculated columns are highlighted.</span></div>' +
       '<div id="sheet-wrap" class="sheet-wrap" tabindex="0" aria-label="Spreadsheet-style shipment ledger"><table class="sheet-table"><thead><tr>' +
-      FIELD_ORDER.map(function (field) { return headerCell(field, true); }).join('') + '</tr></thead><tbody>' + rows + '</tbody><tfoot>' + totals + '</tfoot></table></div>' +
+      FIELD_ORDER.map(function (field) { return headerCell(field, true); }).join('') +
+      '<th class="numeric">Received Amount</th><th>Latest Received Date</th><th>Payment Mode</th><th>Payment Status</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody><tfoot>' + totals + '</tfoot></table></div>' +
       '<div class="summary-strip"><span>Freight: <strong>' + formatMoneyPaise(summary.freightPaise) + '</strong></span><span>Pending: <strong>' +
       formatMoneyPaise(summary.pendingAmountPaise) + '</strong></span><span>COD / To-Pay: <strong>' + formatMoneyPaise(summary.codToPayPaise) + '</strong></span></div></section>';
   }
@@ -668,7 +747,7 @@
       return '<section class="panel"><h2 class="section-title">Import and export preview</h2>' +
         '<p class="toolbar-help">This read-only preview has no connected backend and contains no shipment data. Configure the Google Apps Script URL to enable import, export, and cloud backup.</p></section>';
     }
-    const adminTools = state.user && state.user.role === 'Admin' ?
+    const adminTools = state.user ?
       '<button class="btn btn-secondary" type="button" data-action="backup">Create cloud backup</button>' : '';
     let preview = '';
     if (state.pendingImport) {
@@ -924,9 +1003,6 @@
     record.codToPay = calculated.codToPay;
     record.pendingTobilled = calculated.pendingTobilled;
     record.pendingAmount = calculated.pendingAmount;
-    if (form.elements.podAmountStatus && !form.elements.podAmountStatus.value.trim()) {
-      record.podAmountStatus = String(calculated.podAmountStatus !== undefined ? calculated.podAmountStatus : '0');
-    }
     return record;
   }
 
@@ -960,6 +1036,33 @@
     const remainingPending = formSettlementValue(computed.pendingAmount, status);
     byId('shipment-form').elements.pendingAmount.value =
       remainingPending === null ? '' : CALC.fromPaise(Math.round(remainingPending * 100)).toLocaleString('en-IN');
+    const receiptSummary = computed.pendingAmount === null || computed.pendingAmount === undefined
+      ? { originalPaise: null, receivedPaise: 0 }
+      : state.editingId && status === 'TOBILLED'
+      ? RECEIPTS.calculateBalance(computed.pendingAmount, state.receipts, state.editingId)
+      : { originalPaise: Math.round(computed.pendingAmount * 100), receivedPaise: 0 };
+    const statusNode = byId('pod-payment-status');
+    if (statusNode) {
+      statusNode.textContent = paymentStatusText(
+        receiptSummary.originalPaise === null ? null : receiptSummary.originalPaise,
+        receiptSummary.receivedPaise
+      );
+    }
+    const showReceiptControls = Boolean(state.editingId && status === 'TOBILLED');
+    const receiptSummaryNode = byId('receipt-balance-summary');
+    const receiptButton = byId('btn-record-receipt');
+    const receiptHint = byId('receipt-management-hint');
+    if (receiptSummaryNode) {
+      receiptSummaryNode.hidden = !showReceiptControls || receiptSummary.originalPaise === null;
+      if (!receiptSummaryNode.hidden) {
+        receiptSummaryNode.innerHTML = receiptBalanceMarkup(receiptSummary, false);
+      }
+    }
+    if (receiptButton) {
+      receiptButton.hidden = !showReceiptControls;
+      receiptButton.disabled = state.preview;
+    }
+    if (receiptHint) receiptHint.hidden = !showReceiptControls || state.formMode !== 'edit';
   }
 
   function setFormValues(record) {
@@ -978,6 +1081,7 @@
       if (field === 'toPayStatus') value = CALC.normalizeStatus(value);
       if (DATE_FIELDS.has(field)) value = toDateInput(value);
       if (isBlankMarker(value)) value = '';
+      if (field === 'podAmountStatus' && String(value).trim() === '0') value = '';
       if (field === 'pendingTobilled' || field === 'pendingAmount') {
         value = value === '' || value === null ? '' : displayMoney(value).replace(/^₹/, '');
       }
@@ -990,9 +1094,6 @@
       }
       if (form.elements.toPayStatus && !form.elements.toPayStatus.value) {
         form.elements.toPayStatus.value = 'TOBILLED';
-      }
-      if (form.elements.podAmountStatus && !form.elements.podAmountStatus.value) {
-        form.elements.podAmountStatus.value = '0';
       }
     }
     updateFormCalculations();
@@ -1024,14 +1125,12 @@
 
     const saveBtn = byId('save-shipment');
     const clearAllBtn = byId('clear-all-dialog');
-    const fillPendingBtn = byId('btn-fill-pending');
     if (saveBtn) {
       saveBtn.hidden = isView;
       saveBtn.disabled = false;
       saveBtn.textContent = existing ? 'Update Shipment' : 'Add & Submit Shipment';
     }
     if (clearAllBtn) clearAllBtn.hidden = isView;
-    if (fillPendingBtn) fillPendingBtn.hidden = isView;
     [
       byId('clear-shipment-info'),
       byId('clear-payment-details'),
@@ -1072,7 +1171,7 @@
         const isReversal = receipt.type === 'REVERSAL';
         const wasReversed = reversedIds.has(receipt.id);
         const status = isReversal ? 'Reversal' : wasReversed ? 'Reversed' : 'Recorded';
-        const action = !isReversal && !wasReversed && state.user && state.user.role === 'Admin'
+        const action = !isReversal && !wasReversed && state.user
           ? '<button class="btn btn-danger btn-sm" type="button" data-action="reverse-receipt" data-id="' +
             escapeHtml(receipt.id) + '">Undo</button>' : '';
         const amount = (isReversal ? '−' : '') + displayMoney(receipt.receivedAmount);
@@ -1099,16 +1198,21 @@
     byId('receipt-error').textContent = '';
     byId('receipt-shipment-meta').textContent =
       'LR No ' + (shipment.lrNo || '') + ' · ' + (shipment.transportName || '');
-    byId('receipt-balance').textContent = receiptSummaryText(shipment);
+    if (balance) byId('receipt-balance').innerHTML = receiptBalanceMarkup(balance);
+    else byId('receipt-balance').textContent = receiptSummaryText(shipment);
     const canRecord = Boolean(balance && balance.remainingPaise > 0);
+    byId('receipt-entry-section').hidden = !canRecord;
+    byId('receipt-entry-help').hidden = false;
     byId('receipt-entry-help').textContent = canRecord
-      ? 'Enter a payment received. Only an administrator can undo a test or mistaken receipt.'
-      : 'No positive balance is available to receive. An administrator can still review or undo a recorded receipt below.';
+      ? 'Record the amount, date, and mode received. Payments are applied to this saved TOBILLED shipment.'
+      : 'No positive balance is available to receive. Use the history below to review or undo a recorded receipt.';
     Array.from(form.elements).forEach(function (element) {
       if (element.name) element.disabled = !canRecord;
     });
     byId('save-receipt').disabled = !canRecord;
-    byId('receipt-dialog-title').textContent = 'Record payment received';
+    byId('receipt-dialog-title').textContent = canRecord
+      ? 'Record or manage received payments'
+      : 'Manage received payments';
     renderReceiptHistory(shipment.id);
     byId('receipt-dialog').showModal();
   }
@@ -1136,16 +1240,18 @@
       }
       if (state.receiptShipmentId === shipmentId) {
         const updatedBalance = shipment ? receiptTotals(shipment) : null;
-        byId('receipt-balance').textContent = updatedBalance
-          ? receiptSummaryText(shipment) : 'Receipt reversed.';
+        if (updatedBalance) byId('receipt-balance').innerHTML = receiptBalanceMarkup(updatedBalance);
+        else byId('receipt-balance').textContent = 'Receipt reversed.';
         const canRecord = Boolean(updatedBalance && updatedBalance.remainingPaise > 0);
         const form = byId('receipt-form');
+        byId('receipt-entry-section').hidden = !canRecord;
+        byId('receipt-entry-help').hidden = false;
         Array.from(form.elements).forEach(function (element) {
           if (element.name) element.disabled = !canRecord;
         });
         byId('receipt-entry-help').textContent = canRecord
           ? 'You can now record the correct payment amount if needed.'
-          : 'No positive balance is available to receive.';
+          : 'No positive balance is available to receive. Use the history below to review or undo a recorded receipt.';
         byId('save-receipt').disabled = !canRecord;
         renderReceiptHistory(shipmentId);
       }
@@ -1915,37 +2021,6 @@
         if (!confirmed) return;
         setFormValues(null);
         toast('Form fields have been reset.', 'info');
-      });
-    }
-
-    const fillPendingBtn = byId('btn-fill-pending');
-    if (fillPendingBtn) {
-      fillPendingBtn.addEventListener('click', function (e) {
-        e.preventDefault();
-        if (state.formMode === 'view') return;
-        const form = byId('shipment-form');
-        if (!form) return;
-        const record = formRecord();
-        const computed = CALC.calculateShipment(record);
-        if (computed.pendingAmount === null || computed.pendingAmount === undefined || isNaN(computed.pendingAmount)) {
-          toast('Pending Amount is not available. Please verify Freight and status.', 'error');
-          return;
-        }
-        const pendingPaise = Math.round(formSettlementValue(computed.pendingAmount, record.toPayStatus) * 100);
-        const formattedRupees = CALC.fromPaise(pendingPaise).toLocaleString('en-IN');
-        const target = form.elements.podAmountStatus;
-        if (target) {
-          const currentVal = target.value ? target.value.trim() : '';
-          if (currentVal && currentVal !== '0' && currentVal !== String(computed.pendingAmount) && currentVal !== formattedRupees) {
-            const ok = window.confirm('POD Balance Amount currently contains "' + currentVal + '". Do you want to overwrite it with calculated Pending Amount ₹' + formattedRupees + '?');
-            if (!ok) return;
-          }
-          target.value = String(computed.pendingAmount);
-          target.dispatchEvent(new Event('input', { bubbles: true }));
-          target.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-        updateFormCalculations();
-        toast('Calculated Pending Amount (₹' + formattedRupees + ') copied to POD Balance Amount.', 'success');
       });
     }
 
