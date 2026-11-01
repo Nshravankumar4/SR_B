@@ -13,6 +13,8 @@ The application starts with an empty ledger. The example shipments in `tests/fix
 - Four separate, independent date fields: `1st Advance Given Date`, `2nd Advance Given Date`, `3rd Advance Given Date`, and `Unloading Date` (never combined with 1st advance date), plus `Balance Date`.
 - Exact status choices: `TOBILLED`, `A/TO-PAY`, `F/TO-PAY`.
 - Shared calculation/validation logic on the browser and server.
+- Payment recovery history with category-specific partial/full balances, actual received dates, idempotent submissions, and auditable reversals.
+- A separate `Recoveries` worksheet; shipment records remain in their existing JSON-backed `Shipments` sheet.
 - Separate `Pending Amount: Tobilled` and final `Pending Amount`.
 - Calculates COD / To-Pay for A/TO-PAY and F/TO-PAY from workbook source fields; preserves TOBILLED text notes.
 - Excel/CSV import with preview and duplicate checks; styled ExcelJS export visually matching application theme (custom colored headers, alternating rows, total summary row, frozen panes).
@@ -34,12 +36,15 @@ SR_B/
     │   ├── app.js
     │   ├── api.js
     │   ├── calculations.js
+    │   ├── recovery.js
     │   ├── config.js
     │   └── validation.js
     ├── backend/Code.gs
     ├── libs/xlsx.full.min.js
     ├── tests/
     │   ├── calculations.test.js
+    │   ├── recovery.test.js
+    │   ├── backend-recovery.test.js
     │   ├── validation.test.js
     │   ├── summaries.test.js
     │   ├── browser-runner.html
@@ -76,7 +81,7 @@ Open `http://127.0.0.1:8123/?preview=1`. The app and its assets are served from 
 4. Deploy the script as a Web App and paste its URL into `js/config.js` as `apiUrl`.
 5. Host the repository root over HTTPS (for example, with GitHub Pages). The live app at the root will authenticate against the new backend. The backend URL is configuration, not a credential.
 
-Until that separate backend is deployed and configured, normal login and all persistent operations remain unavailable. The application does not silently fall back to browser storage.
+Until that separate backend is deployed and configured, normal login and all persistent operations remain unavailable. The application does not silently fall back to browser storage. When updating an existing backend for recovery support, back up its spreadsheet, deploy the updated `Code.gs`, and run `setupBrokerLedger()` once to add the `Recoveries` sheet without changing shipment records.
 
 ## Calculation rules
 
@@ -100,7 +105,7 @@ The shipment data fields, status contract, and distinction between the two pendi
 With Node.js 18 or later:
 
 ```powershell
-node --test tests\calculations.test.js tests\validation.test.js tests\summaries.test.js
+node --test tests\calculations.test.js tests\validation.test.js tests\summaries.test.js tests\recovery.test.js tests\backend-recovery.test.js
 ```
 
 Run the command from `D:\Repo\SR_B\Broker-Ledger`. The same calculation and validation checks can be run in a browser by serving `D:\Repo\SR_B` and opening `/Broker-Ledger/tests/browser-runner.html`. Test coverage and end-to-end checks are listed in [docs/TESTING.md](docs/TESTING.md).

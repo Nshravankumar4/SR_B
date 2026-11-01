@@ -53,6 +53,7 @@ test('parser accepts common currency formats and exact paise', function () {
   assert.equal(calc.parseMoney('1,20,000.50').paise, 12000050);
   assert.equal(calc.parseMoney('1,200,000.05').paise, 120000005);
   assert.equal(calc.parseMoney('-₹0.10').paise, -10);
+  assert.equal(calc.parseMoney('₹-0.10').paise, -10);
 });
 
 test('empty optional values calculate as zero but invalid text is not zero', function () {

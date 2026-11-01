@@ -2,10 +2,12 @@
   'use strict';
 
   const CALC = window.BrokerCalculations;
+  const RECOVERY = window.BrokerRecovery;
   const VALIDATION = window.BrokerValidation;
   const state = {
     user: null,
     records: [],
+    recoveries: [],
     filtered: [],
     view: 'dashboard',
     editingId: null,
@@ -22,7 +24,10 @@
     sortField: 'slNo',
     sortDirection: 1,
     toastTimer: null,
-    sheetFilter: null
+    sheetFilter: null,
+    recoveryShipmentId: null,
+    recoveryRequestKey: '',
+    reversalRequest: null
   };
 
   const FIELD_ORDER = [
@@ -69,6 +74,24 @@
     const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (iso) return iso[3] + '-' + iso[2] + '-' + iso[1];
     return text || '—';
+  }
+  function recoveryDateSortKey(value) {
+    const text = String(value || '');
+    const dmy = text.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+    return dmy ? dmy[3] + '-' + dmy[2] + '-' + dmy[1] : text;
+  }
+  function localDateInputValue() {
+    const today = new Date();
+    return String(today.getFullYear()) + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' +
+      String(today.getDate()).padStart(2, '0');
+  }
+  function newIdempotencyKey() {
+    return window.crypto && window.crypto.randomUUID
+      ? window.crypto.randomUUID()
+      : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (char) {
+        const random = Math.random() * 16 | 0;
+        return (char === 'x' ? random : (random & 3 | 8)).toString(16);
+      });
   }
   function toDateInput(value) {
     const text = String(value || '').trim();
@@ -131,13 +154,14 @@
     return state.filtered;
   }
   function numericTotals(records) {
-    return CALC.summarize(records);
+    return RECOVERY.summarize(records, state.recoveries);
   }
   function fieldValue(record, key) {
     if (DATE_FIELDS.has(key)) return formatDate(record[key]);
     if (MONEY_FIELDS.has(key)) {
-      if (key === 'pendingTobilled' && record[key] === null) return '—';
-      return displayMoney(record[key]);
+      const value = key === 'pendingTobilled' || key === 'pendingAmount' ? settlementValue(record, key) : record[key];
+      if (key === 'pendingTobilled' && value === null) return '—';
+      return displayMoney(value);
     }
     if (key === 'codToPay') {
       const parsed = CALC.parseMoney(record[key], { allowEmpty: true });
@@ -207,8 +231,7 @@
   }
 
   function isShipmentOverdue(rec) {
-    const derived = withDerivedValues(rec);
-    const parsed = CALC.parseMoney(derived.pendingAmount, { allowEmpty: true });
+    const parsed = CALC.parseMoney(settlementValue(rec, 'pendingAmount'), { allowEmpty: true });
     if (!parsed.ok || parsed.empty || parsed.paise <= 0) return false;
     const days = getShipmentDaysPending(rec);
     if (days > 15) return true;
@@ -230,8 +253,7 @@
     if (!rec.truckNo || !String(rec.truckNo).trim()) return true;
     const freightParsed = CALC.parseMoney(rec.freight, { allowEmpty: true });
     if (!freightParsed.ok || freightParsed.empty || freightParsed.paise <= 0) return true;
-    const derived = withDerivedValues(rec);
-    const pendingParsed = CALC.parseMoney(derived.pendingAmount, { allowEmpty: true });
+    const pendingParsed = CALC.parseMoney(settlementValue(rec, 'pendingAmount'), { allowEmpty: true });
     if (pendingParsed.ok && !pendingParsed.empty && pendingParsed.paise < 0) return true;
     return false;
   }
@@ -276,8 +298,7 @@
     const pendingShipmentRows = [];
 
     (state.records || []).forEach(function (rec) {
-      const derived = withDerivedValues(rec);
-      const parsedPending = CALC.parseMoney(derived.pendingAmount, { allowEmpty: true });
+      const parsedPending = CALC.parseMoney(settlementValue(rec, 'pendingAmount'), { allowEmpty: true });
       const hasPending = parsedPending.ok && !parsedPending.empty && parsedPending.paise > 0;
       const days = getShipmentDaysPending(rec);
       const overdue = isShipmentOverdue(rec);
@@ -411,6 +432,50 @@
       ['Numeric COD / To-Pay', formatMoneyPaise(summary.codToPayPaise), 'Text placeholders excluded']
     ];
     const cards = metrics.map(function (m) { return renderMetric(m[0], m[1], m[2]); }).join('');
+    const recoveryCategories = Object.keys(RECOVERY.CATEGORIES);
+    const recoveryStats = {};
+    recoveryCategories.forEach(function (category) {
+      recoveryStats[category] = { recoveredPaise: 0, remainingPaise: 0, partialCount: 0, fullCount: 0 };
+      state.records.filter(function (record) { return record.toPayStatus === 'TOBILLED'; }).forEach(function (record) {
+        const balance = recoveryBalance(record, category);
+        recoveryStats[category].recoveredPaise += balance.recoveredPaise;
+        if (balance.remainingPaise > 0) recoveryStats[category].remainingPaise += balance.remainingPaise;
+        if (balance.status === 'PARTIALLY RECEIVED') recoveryStats[category].partialCount += 1;
+        if (balance.status === 'FULLY RECEIVED') recoveryStats[category].fullCount += 1;
+      });
+    });
+    const recoverySummary = recoveryCategories.map(function (category) {
+      const stats = recoveryStats[category];
+      return '<article class="recovery-balance-card"><h4>' + escapeHtml(RECOVERY.CATEGORIES[category]) + '</h4>' +
+        '<dl><dt>Total recovered</dt><dd>' + formatMoneyPaise(stats.recoveredPaise) + '</dd>' +
+        '<dt>Outstanding</dt><dd>' + formatMoneyPaise(stats.remainingPaise) + '</dd>' +
+        '<dt>Partially received</dt><dd>' + stats.partialCount + '</dd>' +
+        '<dt>Fully received</dt><dd>' + stats.fullCount + '</dd></dl></article>';
+    }).join('');
+    const recoveryHistoryRows = state.recoveries.slice().sort(function (a, b) {
+      return recoveryDateSortKey(b.recoveryDate).localeCompare(recoveryDateSortKey(a.recoveryDate)) ||
+        String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+    }).slice(0, 10).map(function (item) {
+      const amount = CALC.parseMoney(item.receivedAmount);
+      return '<tr><td>' + escapeHtml(formatDate(item.recoveryDate)) + '</td><td>' + escapeHtml(item.partyName || '') +
+        '</td><td>' + escapeHtml(item.lrNo || '') + '</td><td>' + escapeHtml(item.categoryLabel || RECOVERY.CATEGORIES[item.category] || item.category) +
+        '</td><td class="numeric">' + (amount.ok ? formatMoneyPaise(amount.paise) : 'Invalid amount') +
+        '</td><td>' + escapeHtml(item.paymentMode || '') + '</td><td>' + escapeHtml(item.recoveryStatus || '') + '</td></tr>';
+    }).join('') || '<tr><td colspan="7" class="empty-state">No recovery transactions recorded.</td></tr>';
+    const partyBalances = {};
+    state.records.filter(function (record) { return record.toPayStatus === 'TOBILLED'; }).forEach(function (record) {
+      const party = String(record.transportName || 'Unassigned party');
+      if (!partyBalances[party]) partyBalances[party] = { pendingTobilled: 0, pendingAmount: 0 };
+      recoveryCategories.forEach(function (category) {
+        const balance = recoveryBalance(record, category);
+        if (balance.remainingPaise > 0) partyBalances[party][category] += balance.remainingPaise;
+      });
+    });
+    const partyRows = Object.keys(partyBalances).sort().map(function (party) {
+      return '<tr><td>' + escapeHtml(party) + '</td><td class="numeric">' +
+        formatMoneyPaise(partyBalances[party].pendingTobilled) + '</td><td class="numeric">' +
+        formatMoneyPaise(partyBalances[party].pendingAmount) + '</td></tr>';
+    }).join('') || '<tr><td colspan="3" class="empty-state">No TOBILLED balances.</td></tr>';
 
     return '<section class="dashboard-hero-banner"><div class="banner-welcome">' +
       '<div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.3rem;">' +
@@ -439,6 +504,14 @@
       '<div class="table-wrap" tabindex="0" aria-label="Transporter balance payments table"><table class="ledger-table"><thead><tr>' +
       '<th>Transporter Name</th><th>LR Number</th><th>Truck Number</th><th class="numeric">Balance Amount</th><th style="text-align:center;">Pending Since</th><th style="text-align:center;">Days Pending</th><th style="text-align:center;">Payment Status</th><th style="text-align:center;">Action</th>' +
       '</tr></thead><tbody>' + pendingTableRows + '</tbody></table></div></section>' +
+      '<section class="panel"><div class="section-header-wrap"><div><h3 class="section-title">Payment Recovery Summary</h3>' +
+      '<p class="toolbar-help">Separate TOBILLED categories are shown independently; these overlapping calculation bases are not added together.</p></div></div>' +
+      '<div class="recovery-balance-grid">' + recoverySummary + '</div>' +
+      '<h4>Party-wise outstanding</h4><div class="table-wrap"><table class="ledger-table"><thead><tr><th>Party</th>' +
+      '<th class="numeric">Pending Amount: Tobilled</th><th class="numeric">Final Pending Amount</th></tr></thead><tbody>' + partyRows + '</tbody></table></div>' +
+      '<h4>Recent recovery transactions</h4><div class="table-wrap"><table class="ledger-table"><thead><tr><th>Received date</th><th>Party</th>' +
+      '<th>LR No</th><th>Category</th><th class="numeric">Amount</th><th>Mode</th><th>Status</th></tr></thead><tbody>' +
+      recoveryHistoryRows + '</tbody></table></div></section>' +
       '<section class="panel"><div class="section-header-wrap"><div>' +
       '<h3 class="section-title">📈 Ledger Closing &amp; Financial Summary</h3>' +
       '<p class="toolbar-help">Aggregated financial figures across all shipments and payment statuses.</p></div></div>' +
@@ -468,6 +541,7 @@
       const actionCell = actions ? '<td class="row-actions"><div class="view-actions">' +
         '<button class="btn btn-secondary btn-sm" type="button" data-action="view" data-id="' + escapeHtml(record.id) + '" aria-label="View shipment">View</button>' +
         (!state.preview ? '<button class="btn btn-secondary btn-sm" type="button" data-action="edit" data-id="' + escapeHtml(record.id) + '" aria-label="Edit shipment">Edit</button>' : '') +
+        (!state.preview && record.toPayStatus === 'TOBILLED' ? '<button class="btn btn-secondary btn-sm" type="button" data-action="recover" data-id="' + escapeHtml(record.id) + '" aria-label="Record payment recovery">Recover</button>' : '') +
         (state.user && state.user.role === 'Admin' ? '<button class="btn btn-danger btn-sm" type="button" data-action="delete" data-id="' + escapeHtml(record.id) + '" aria-label="Delete shipment">Delete</button>' : '') +
         '</div></td>' : '';
       return '<tr data-id="' + escapeHtml(record.id) + '">' + cells + actionCell + '</tr>';
@@ -506,7 +580,7 @@
     if (filter.type === 'category') {
       if (filter.value === 'pending') {
         return records.filter(function (r) {
-          const parsed = CALC.parseMoney(r.pendingAmount, { allowEmpty: true });
+        const parsed = CALC.parseMoney(settlementValue(r, 'pendingAmount'), { allowEmpty: true });
           return parsed.ok && !parsed.empty && parsed.paise > 0;
         });
       }
@@ -617,7 +691,8 @@
     }).sort(compareRecords);
   }
   function sortableValue(record, field) {
-    const value = record[field];
+    const value = field === 'pendingTobilled' || field === 'pendingAmount'
+      ? settlementValue(record, field) : record[field];
     if (DATE_FIELDS.has(field)) {
       const text = String(value || '');
       const dmy = text.match(/^(\d{2})-(\d{2})-(\d{4})$/);
@@ -665,12 +740,215 @@
     result.pendingAmount = calculation.pendingAmount;
     return result;
   }
+  function recoveryBalance(record, category) {
+    const derived = withDerivedValues(record);
+    const original = category === 'pendingTobilled' ? derived.pendingTobilled : derived.pendingAmount;
+    return RECOVERY.calculateBalance(original, state.recoveries, record.id, category);
+  }
+  function settlementValue(record, field) {
+    const derived = withDerivedValues(record);
+    if (derived.toPayStatus === 'TOBILLED' && (field === 'pendingTobilled' || field === 'pendingAmount')) {
+      return RECOVERY.calculateBalance(derived[field], state.recoveries, record.id, field).remainingPaise / 100;
+    }
+    return derived[field];
+  }
+  function renderRecoveryBalances(record) {
+    return Object.keys(RECOVERY.CATEGORIES).map(function (category) {
+      const balance = recoveryBalance(record, category);
+      return '<article class="recovery-balance-card"><h4>' + escapeHtml(balance.categoryLabel) + '</h4>' +
+        '<dl><dt>Original pending</dt><dd>' + formatMoneyPaise(balance.originalPaise) + '</dd>' +
+        '<dt>Total recovered</dt><dd>' + formatMoneyPaise(balance.recoveredPaise) + '</dd>' +
+        '<dt>Remaining pending</dt><dd>' + formatMoneyPaise(balance.remainingPaise) + '</dd>' +
+        '<dt>Recovery status</dt><dd class="' + (balance.status === 'OVER-RECOVERED' || balance.status === 'OVER-REVERSED' ? 'recovery-integrity-error' : '') + '">' +
+        escapeHtml(balance.status) + '</dd></dl></article>';
+    }).join('');
+  }
+  function renderRecoveryHistory(shipmentId) {
+    const entries = state.recoveries.filter(function (item) { return item.shipmentId === shipmentId; })
+      .slice().sort(function (a, b) {
+        return recoveryDateSortKey(b.recoveryDate).localeCompare(recoveryDateSortKey(a.recoveryDate)) ||
+          String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+      });
+    if (!entries.length) return '<p class="empty-state">No recovery transactions recorded.</p>';
+    const reversedIds = new Set(entries.filter(function (item) { return item.type === 'REVERSAL'; }).map(function (item) { return item.reversalOf; }));
+    return '<table class="ledger-table"><thead><tr><th>Date received</th><th>Category</th><th class="numeric">Received</th>' +
+      '<th class="numeric">Remaining after transaction</th><th>Mode</th><th>Reference</th><th>Status</th><th>Correction</th></tr></thead><tbody>' +
+      entries.map(function (item) {
+        const remaining = CALC.parseMoney(item.remainingPending);
+        const received = CALC.parseMoney(item.receivedAmount);
+        return '<tr><td>' + escapeHtml(formatDate(item.recoveryDate)) + '</td><td>' + escapeHtml(item.categoryLabel || RECOVERY.CATEGORIES[item.category] || item.category) +
+          '</td><td class="numeric">' + (received.ok ? formatMoneyPaise(received.paise) : 'Invalid amount') +
+          '</td><td class="numeric">' + (remaining.ok ? formatMoneyPaise(remaining.paise) : 'Invalid amount') +
+          '</td><td>' + escapeHtml(item.paymentMode || '') + '</td><td>' + escapeHtml(item.transactionReference || '—') +
+          '</td><td>' + escapeHtml(item.recoveryStatus || '') + '</td><td>' +
+          ((item.type || 'RECOVERY') === 'RECOVERY' && !reversedIds.has(item.id)
+            ? '<button class="btn btn-secondary btn-sm" type="button" data-action="reverse-recovery" data-id="' + escapeHtml(item.id) + '">Reverse</button>'
+            : '—') + '</td></tr>';
+      }).join('') + '</tbody></table>';
+  }
+  async function reverseRecovery(recoveryId) {
+    if (state.busy) return;
+    const original = state.recoveries.find(function (item) { return item.id === recoveryId; });
+    if (!original || original.type === 'REVERSAL' || state.recoveries.some(function (item) {
+      return item.type === 'REVERSAL' && item.reversalOf === recoveryId;
+    })) {
+      toast('This recovery cannot be reversed again.', 'error');
+      return;
+    }
+    const reason = window.prompt('Enter the reason for reversing this recovery:');
+    if (!reason || !reason.trim()) return;
+    const reversalDate = localDateInputValue();
+    if (!state.reversalRequest || state.reversalRequest.recoveryId !== recoveryId ||
+        state.reversalRequest.reason !== reason.trim() || state.reversalRequest.reversalDate !== reversalDate) {
+      state.reversalRequest = {
+        recoveryId: recoveryId,
+        reason: reason.trim(),
+        reversalDate: reversalDate,
+        idempotencyKey: newIdempotencyKey()
+      };
+    }
+    setBusy(true);
+    try {
+      const response = await window.BrokerApi.reverseRecovery(state.reversalRequest);
+      if (!response.recovery || !response.recovery.id) throw new Error('Backend response did not contain the reversal transaction.');
+      if (!state.recoveries.some(function (item) { return item.id === response.recovery.id; })) state.recoveries.push(response.recovery);
+      state.version = Math.max(state.version, Number(response.version) || 0);
+      state.reversalRequest = null;
+      const shipmentId = state.recoveryShipmentId;
+      const record = state.records.find(function (item) { return item.id === shipmentId; });
+      if (record) byId('recovery-balances').innerHTML = renderRecoveryBalances(record);
+      byId('recovery-history').innerHTML = renderRecoveryHistory(shipmentId);
+      render();
+      toast('Recovery reversal saved as a new audit transaction.' + (response.warning ? ' ' + response.warning : ''), response.warning ? 'error' : 'success');
+    } catch (error) {
+      toast(error.message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+  function updateRecoveryPreview() {
+    const form = byId('recovery-form');
+    const record = state.records.find(function (item) { return item.id === state.recoveryShipmentId; });
+    const preview = byId('recovery-preview');
+    if (!form || !record || !preview) return;
+    const category = form.elements.category.value;
+    const amount = CALC.parseMoney(form.elements.receivedAmount.value);
+    const balance = recoveryBalance(record, category);
+    if (balance.remainingPaise <= 0) {
+      preview.textContent = 'There is no positive outstanding amount in this category.';
+      return;
+    }
+    if (!amount.ok || amount.paise <= 0) {
+      preview.textContent = 'Enter a positive amount to preview the remaining balance.';
+      return;
+    }
+    if (amount.paise > balance.remainingPaise) {
+      preview.textContent = 'Amount exceeds the outstanding balance of ' + formatMoneyPaise(balance.remainingPaise) + '.';
+      return;
+    }
+    preview.textContent = 'Remaining after this recovery: ' + formatMoneyPaise(balance.remainingPaise - amount.paise);
+  }
+  function openRecoveryDialog(shipmentId) {
+    const record = state.records.find(function (item) { return item.id === shipmentId; });
+    if (!record || record.toPayStatus !== 'TOBILLED') {
+      toast('Recovery is available only for TOBILLED shipments.', 'error');
+      return;
+    }
+    const form = byId('recovery-form');
+    form.reset();
+    state.recoveryShipmentId = shipmentId;
+    const requestKeyStorage = 'broker-ledger-recovery-request-' + shipmentId;
+    state.recoveryRequestKey = sessionStorage.getItem(requestKeyStorage) || newIdempotencyKey();
+    sessionStorage.setItem(requestKeyStorage, state.recoveryRequestKey);
+    form.elements.receivedDate.value = localDateInputValue();
+    byId('recovery-dialog-title').textContent = 'Recover payment · LR ' + (record.lrNo || '—');
+    byId('recovery-shipment-meta').textContent = (record.transportName || 'Unknown party') + ' · ' +
+      (record.truckNo || 'No truck') + ' · Shipment ' + (record.slNo || '');
+    byId('recovery-error').hidden = true;
+    byId('recovery-balances').innerHTML = renderRecoveryBalances(record);
+    byId('recovery-history').innerHTML = renderRecoveryHistory(shipmentId);
+    updateRecoveryPreview();
+    byId('recovery-dialog').showModal();
+  }
+  async function saveRecovery(event) {
+    event.preventDefault();
+    if (state.busy || !state.recoveryShipmentId) return;
+    const form = byId('recovery-form');
+    const error = byId('recovery-error');
+    const record = state.records.find(function (item) { return item.id === state.recoveryShipmentId; });
+    const category = form.elements.category.value;
+    const amount = CALC.parseMoney(form.elements.receivedAmount.value);
+    const balance = record && recoveryBalance(record, category);
+    if (!record || !amount.ok || amount.paise <= 0) {
+      error.textContent = amount.error || 'Enter a received amount greater than zero.';
+      error.hidden = false;
+      return;
+    }
+    if (balance.remainingPaise <= 0) {
+      error.textContent = 'There is no positive outstanding amount in this category.';
+      error.hidden = false;
+      return;
+    }
+    if (amount.paise > balance.remainingPaise) {
+      error.textContent = 'Recovery exceeds the current outstanding amount of ' + formatMoneyPaise(balance.remainingPaise) + '.';
+      error.hidden = false;
+      return;
+    }
+    if (!form.elements.receivedDate.value) {
+      error.textContent = 'Enter the actual date the payment was received.';
+      error.hidden = false;
+      return;
+    }
+    const saveButton = byId('save-recovery');
+    saveButton.disabled = true;
+    saveButton.textContent = 'Saving…';
+    setBusy(true);
+    try {
+      const response = await window.BrokerApi.createRecovery({
+        idempotencyKey: state.recoveryRequestKey,
+        shipmentId: state.recoveryShipmentId,
+        category: category,
+        receivedAmount: CALC.fromPaise(amount.paise),
+        receivedDate: form.elements.receivedDate.value,
+        paymentMode: form.elements.paymentMode.value,
+        transactionReference: form.elements.transactionReference.value.trim(),
+        remarks: form.elements.remarks.value.trim()
+      });
+      if (!response.recovery || !response.recovery.id) throw new Error('Backend response did not contain the saved recovery transaction.');
+      if (!state.recoveries.some(function (item) { return item.id === response.recovery.id; })) {
+        state.recoveries.push(response.recovery);
+      }
+      state.version = Math.max(state.version, Number(response.version) || 0);
+      byId('recovery-balances').innerHTML = renderRecoveryBalances(record);
+      byId('recovery-history').innerHTML = renderRecoveryHistory(state.recoveryShipmentId);
+      render();
+      toast((response.duplicate ? 'Recovery request was already saved.' : 'Recovery saved.') +
+        (response.warning ? ' ' + response.warning : ''), response.warning ? 'error' : 'success');
+      byId('recovery-dialog').close();
+      sessionStorage.removeItem('broker-ledger-recovery-request-' + state.recoveryShipmentId);
+      state.recoveryShipmentId = null;
+      state.recoveryRequestKey = '';
+      refreshRecords().catch(function (refreshError) {
+        setCloudStatus(false, 'Offline — last data may be stale');
+        toast('Recovery was saved, but refreshing the ledger failed: ' + refreshError.message, 'error');
+      });
+    } catch (saveError) {
+      error.textContent = saveError.message;
+      error.hidden = false;
+    } finally {
+      setBusy(false);
+      saveButton.disabled = false;
+      saveButton.textContent = 'Save Recovery';
+    }
+  }
   async function refreshRecords() {
     setCloudStatus(false, 'Syncing…');
     const result = await window.BrokerApi.list();
     if (!Array.isArray(result.records)) throw new Error('Backend response did not contain shipment records.');
+    if (!Array.isArray(result.recoveries)) throw new Error('Backend response did not contain recovery history. Deploy the updated Apps Script and run setupBrokerLedger().');
     if (Number(result.version) >= state.version) {
       state.records = result.records.map(withDerivedValues);
+      state.recoveries = result.recoveries;
       state.version = Number(result.version) || state.version;
     }
     state.loadingRecords = false;
@@ -1073,7 +1351,7 @@
     }
     try {
       const data = state.records.slice().sort(sortBySlNo).map(withDerivedValues);
-      const summary = CALC.summarize(data);
+      const summary = numericTotals(data);
       const filename = 'Broker_Ledger_' + new Date().toISOString().slice(0, 10) + '.xlsx';
 
       if (window.ExcelJS) {
@@ -1132,6 +1410,9 @@
             } else if (field === 'codToPay') {
               const parsed = CALC.parseMoney(record[field], { allowEmpty: true });
               rowData[field] = parsed.ok && !parsed.empty ? CALC.fromPaise(parsed.paise) : (record[field] || '');
+            } else if (field === 'pendingTobilled' || field === 'pendingAmount') {
+              const parsed = CALC.parseMoney(settlementValue(record, field), { allowEmpty: true });
+              rowData[field] = parsed.ok && !parsed.empty ? CALC.fromPaise(parsed.paise) : '';
             } else if (MONEY_FIELDS.has(field)) {
               const parsed = CALC.parseMoney(record[field], { allowEmpty: true });
               rowData[field] = parsed.ok && !parsed.empty ? CALC.fromPaise(parsed.paise) : (record[field] === 0 ? 0 : '');
@@ -1253,6 +1534,10 @@
         if (field === 'codToPay') {
           const parsed = CALC.parseMoney(record[field], { allowEmpty: true });
           return parsed.ok && !parsed.empty ? CALC.fromPaise(parsed.paise) : (record[field] || '');
+        }
+        if (field === 'pendingTobilled' || field === 'pendingAmount') {
+          const parsed = CALC.parseMoney(settlementValue(record, field), { allowEmpty: true });
+          return parsed.ok && !parsed.empty ? CALC.fromPaise(parsed.paise) : '';
         }
         if (MONEY_FIELDS.has(field)) return numericExportValue(record[field]);
         return record[field] === null || record[field] === undefined ? '' : record[field];
@@ -1592,6 +1877,15 @@
     byId('shipment-form').addEventListener('input', updateFormCalculations);
     byId('shipment-form').addEventListener('change', updateFormCalculations);
     byId('shipment-form').addEventListener('submit', saveShipment);
+    byId('recovery-form').addEventListener('input', updateRecoveryPreview);
+    byId('recovery-form').addEventListener('change', updateRecoveryPreview);
+    byId('recovery-form').addEventListener('submit', saveRecovery);
+    byId('recovery-history').addEventListener('click', function (event) {
+      const button = event.target.closest('[data-action="reverse-recovery"]');
+      if (button) reverseRecovery(button.dataset.id);
+    });
+    byId('close-recovery-dialog').addEventListener('click', function () { byId('recovery-dialog').close(); });
+    byId('cancel-recovery-dialog').addEventListener('click', function () { byId('recovery-dialog').close(); });
 
     function bindSectionReset(btnId, resetFn, sectionName) {
       const btn = byId(btnId);
@@ -1773,6 +2067,7 @@
     }
     if (action === 'view') openShipmentDialog('view', button.dataset.id);
     if (action === 'edit') openShipmentDialog('edit', button.dataset.id);
+    if (action === 'recover') openRecoveryDialog(button.dataset.id);
     if (action === 'delete') deleteShipment(button.dataset.id);
     if (action === 'export') exportWorkbook(button);
     if (action === 'fullscreen') {

@@ -2,13 +2,19 @@
 
 ## Automated test suites
 
-The project includes 3 automated test suites (60 total checks) executable in PowerShell:
+The Node.js calculation, validation, and recovery suites run with:
+
+```powershell
+node --test .\Broker-Ledger\tests\calculations.test.js .\Broker-Ledger\tests\summaries.test.js .\Broker-Ledger\tests\validation.test.js .\Broker-Ledger\tests\recovery.test.js .\Broker-Ledger\tests\backend-recovery.test.js
+```
+
+The recovery suites verify exact-paise partial/full/multiple transactions, independent categories, actual dates, idempotent retries, over-recovery rejection, append-only reversals, shipment edit protection, and backend validation through mocked Apps Script spreadsheet services. Run the existing PowerShell suites separately:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -Command "& '.\verify_broker_ledger.ps1'; & '.\run_behavioral_tests.ps1'; & '.\Broker-Ledger\tests\verify_dates_and_login.ps1'"
 ```
 
-1. **`verify_broker_ledger.ps1` (25 checks)**:
+1. **`verify_broker_ledger.ps1`**:
    - Form datalist bindings and autocomplete.
    - Non-destructive bank autofill.
    - Status preservation across TOBILLED, A/TO-PAY, and F/TO-PAY.
@@ -18,15 +24,15 @@ powershell -ExecutionPolicy Bypass -Command "& '.\verify_broker_ledger.ps1'; & '
    - Numeric 0 POD status verification (never substituting text 'DONE').
    - Decimal paise precision and negative balance preservation.
 
-2. **`run_behavioral_tests.ps1` (17 checks)**:
+2. **`run_behavioral_tests.ps1`**:
    - Emulates browser UI state transitions, datalist loading, modal initialization, non-destructive editing, live calculations, duplicate prevention, and view/edit permissions.
 
-3. **`Broker-Ledger/tests/verify_dates_and_login.ps1` (18 checks)**:
+3. **`Broker-Ledger/tests/verify_dates_and_login.ps1`**:
    - Independent 1st, 2nd, 3rd Advance Given Dates and independent Unloading Date.
    - Dedicated Balance Date.
    - 3 Advance Cards grouping (amounts + dates).
    - Individual field clear buttons (×).
-   - Live Calculation Summary with `⚡ Fill Pending Amount` button.
+   - Live Calculation Summary with `⚡ Fill Pending Amount` button and recovery entry/history.
    - Clear All button (`#clear-all-dialog`) with confirmation.
    - Dynamic button labels: `Add & Submit Shipment` and `Update Shipment`.
    - Sub-second non-blocking login.

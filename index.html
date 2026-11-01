@@ -12,6 +12,7 @@
   <script src="Broker-Ledger/libs/xlsx.full.min.js"></script>
   <script defer src="Broker-Ledger/js/config.js"></script>
   <script defer src="Broker-Ledger/js/calculations.js"></script>
+  <script defer src="Broker-Ledger/js/recovery.js"></script>
   <script defer src="Broker-Ledger/js/validation.js"></script>
   <script defer src="Broker-Ledger/js/api.js"></script>
   <script defer src="Broker-Ledger/js/app.js"></script>
@@ -336,6 +337,67 @@
         <button id="clear-all-dialog" class="btn btn-secondary btn-clear-all" type="button" title="Clear all currently entered form fields">🗑️ Clear All</button>
         <button id="cancel-dialog" class="btn btn-secondary" type="button">Cancel</button>
         <button id="save-shipment" class="btn btn-primary" type="submit">Add &amp; Submit Shipment</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog id="recovery-dialog" class="modal">
+    <form id="recovery-form" novalidate>
+      <header class="modal-header">
+        <div><p class="eyebrow">PAYMENT SETTLEMENT</p><h2 id="recovery-dialog-title">Record recovery</h2></div>
+        <button id="close-recovery-dialog" class="icon-button" type="button" aria-label="Close recovery form">×</button>
+      </header>
+      <p id="recovery-shipment-meta" class="toolbar-help"></p>
+      <div id="recovery-error" class="notice notice-error" role="alert" hidden></div>
+      <section class="form-section" aria-labelledby="recovery-balances-title">
+        <h3 id="recovery-balances-title" class="form-section-title">Outstanding balances</h3>
+        <div id="recovery-balances" class="recovery-balance-grid"></div>
+      </section>
+      <section class="form-section" aria-labelledby="recovery-entry-title">
+        <h3 id="recovery-entry-title" class="form-section-title">Record received payment</h3>
+        <div class="form-grid">
+          <label class="form-field">
+            <span class="field-label">Pending category <span class="required">*</span></span>
+            <select name="category" required>
+              <option value="pendingTobilled">Pending Amount: Tobilled</option>
+              <option value="pendingAmount">Pending Amount (final)</option>
+            </select>
+          </label>
+          <label class="form-field">
+            <span class="field-label">Amount received (₹) <span class="required">*</span></span>
+            <input name="receivedAmount" inputmode="decimal" placeholder="Amount received" required>
+          </label>
+          <label class="form-field">
+            <span class="field-label">Actual received date <span class="required">*</span></span>
+            <input name="receivedDate" type="date" required>
+          </label>
+          <label class="form-field">
+            <span class="field-label">Payment mode <span class="required">*</span></span>
+            <select name="paymentMode" required>
+              <option value="Bank Transfer">Bank Transfer</option>
+              <option value="Cash">Cash</option>
+              <option value="UPI">UPI</option>
+              <option value="Other">Other</option>
+            </select>
+          </label>
+          <label class="form-field">
+            <span class="field-label">Transaction reference (optional)</span>
+            <input name="transactionReference" maxlength="120">
+          </label>
+          <label class="form-field form-span">
+            <span class="field-label">Remarks (optional)</span>
+            <input name="remarks" maxlength="500">
+          </label>
+        </div>
+        <div id="recovery-preview" class="calculation-hint" aria-live="polite"></div>
+      </section>
+      <section class="form-section" aria-labelledby="recovery-history-title">
+        <h3 id="recovery-history-title" class="form-section-title">Recovery history</h3>
+        <div id="recovery-history" class="table-wrap"></div>
+      </section>
+      <footer class="modal-actions">
+        <button id="cancel-recovery-dialog" class="btn btn-secondary" type="button">Cancel</button>
+        <button id="save-recovery" class="btn btn-primary" type="submit">Save Recovery</button>
       </footer>
     </form>
   </dialog>

@@ -28,7 +28,10 @@ The Web App may need to be reachable by both users for Google Apps Script's Web 
 
 ## Updating and backups
 
+- Before adding recovery support to an existing deployment, create and verify a dated backup of the current spreadsheet. Updating the backend does not migrate or rewrite shipment JSON; `setupBrokerLedger()` adds the new `Recoveries` sheet to the existing spreadsheet.
 - To update backend code, save the Apps Script project, create a **new version**, and update the deployment. The spreadsheet ID and records remain stored in Script Properties and the existing spreadsheet.
+- After replacing `Code.gs`, run `setupBrokerLedger()` once against the existing Script Properties and confirm the new `Recoveries` sheet exists before updating the Web App deployment.
+- The frontend requires `getAll` to return both `records` and `recoveries`. Deploy the frontend and backend changes together; an older deployed backend will show an explicit recovery-history deployment error.
 - The app's administrator backup operation creates a dated copy of the Google spreadsheet in the deployment owner's Drive. Verify that Drive permissions and retention meet your needs.
 - To restore, use Google Drive/Sheets to recover a backup. This project intentionally does not expose an unauthenticated restore endpoint.
 

@@ -63,6 +63,8 @@
     },
     remove: function (id) { return request('deleteShipment', { id: id }); },
     importMany: function (records) { return request('importShipments', { records: records }); },
+    createRecovery: function (recovery) { return request('createRecovery', { recovery: recovery }); },
+    reverseRecovery: function (reversal) { return request('reverseRecovery', { reversal: reversal }); },
     backup: function () { return request('createBackup'); }
   });
 })(window);

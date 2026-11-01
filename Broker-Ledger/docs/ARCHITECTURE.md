@@ -3,12 +3,12 @@
 ## Components
 
 - `index.html` and `css/styles.css` provide the responsive user interface, following the general navy sidebar, cards, and spreadsheet styling of the SR_T reference.
-- `js/calculations.js` is the browser's shared safe amount parser, calculation engine, and summary function.
+- `js/calculations.js` is the browser's shared safe amount parser, shipment calculation engine, and summary function; `js/recovery.js` calculates category-specific net recovery balances.
 - `js/validation.js` performs client-side input validation before requests are sent.
 - `js/api.js` is the only browser-to-backend request layer. It sends `text/plain` JSON POST requests to the configured Apps Script URL.
-- `js/app.js` handles navigation, forms, search/status filters, spreadsheet rendering, import, and export. It uses the shared calculation module rather than defining its own formulas.
-- `backend/Code.gs` handles authentication, validation, calculations, CRUD, duplicate detection, locking, audit entries, and backups.
-- A new Google spreadsheet is created for this application. The backend's `Shipments` sheet stores stable record IDs and JSON rows; `Audit` records write actions. Script Properties hold the spreadsheet ID, account configuration, temporary login counters, sessions, and data version.
+- `js/app.js` handles navigation, forms, search/status filters, shipment and recovery history, spreadsheet rendering, import, and export. It uses shared calculation modules rather than defining its own formulas.
+- `backend/Code.gs` handles authentication, validation, calculations, shipment CRUD, append-only recovery and reversal transactions, idempotency, locking, audit entries, and backups.
+- A new Google spreadsheet is created for this application. The backend's `Shipments` sheet stores stable record IDs and JSON rows; `Recoveries` stores a readable append-only transaction ledger with JSON snapshots; `Audit` records write actions. Script Properties hold the spreadsheet ID, account configuration, temporary login counters, sessions, and data version.
 
 ## Data flow
 
@@ -19,5 +19,6 @@
 5. On a visible signed-in page, an 8-second poll checks the lightweight backend data version without taking the spreadsheet lock. The browser reloads the full authoritative dataset only after the version changes; returning to the tab and manual refresh also check for updates. A failed check is shown as offline/stale rather than a confirmed current sync.
 6. Updates include the record's `updatedAt` value captured when editing began. The backend rejects an update if another user saved a newer version, so stale forms cannot silently overwrite it.
 7. Excel downloads use ExcelJS to format the spreadsheet with exact application styling: colored status and calculation header blocks, thin slate borders, alternating row fills, custom number formats, frozen header panes, and double-underlined summary totals.
+8. Recovery requests re-read the current shipment and category balance under the Apps Script lock. The server rejects over-recovery, uses idempotency keys to make retries safe, and records corrections as linked negative reversal rows rather than editing history.
 
 The application is not connected to the reference project's backend or spreadsheet. No sample shipment data is seeded at setup.
